@@ -1,0 +1,3 @@
+rootProject.name = 'cnapp'
+include 'agent'
+include 'server'
