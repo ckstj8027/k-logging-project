@@ -1,6 +1,6 @@
 package com.k8s.cnapp.server.detection.service;
 
-import com.k8s.cnapp.server.profile.domain.Profile;
+import com.k8s.cnapp.server.profile.domain.PodProfile;
 import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.linear.RealVector;
 import org.apache.commons.math3.stat.correlation.Covariance;
@@ -23,7 +23,7 @@ public class AnomalyDetectionService {
     }
 
     // 이상 탐지 수행
-    public boolean detectAnomaly(Profile profile, RealVector baselineMean, RealMatrix baselineCovariance, double threshold) {
+    public boolean detectAnomaly(PodProfile profile, RealVector baselineMean, RealMatrix baselineCovariance, double threshold) {
         // Profile -> RealVector 변환 로직 필요
         // RealVector point = convertToVector(profile);
         // double distance = calculateMahalanobisDistance(point, baselineMean, baselineCovariance);
@@ -32,7 +32,7 @@ public class AnomalyDetectionService {
     }
 
     // 알림 생성 (Context 포함)
-    public String generateAlert(Profile profile, double distance, double threshold) {
+    public String generateAlert(PodProfile profile, double distance, double threshold) {
         return String.format(
                 "Anomaly Detected! Asset: %s, Distance: %.2f (Threshold: %.2f). Context: %s",
                 profile.getAssetContext().getAssetKey(),

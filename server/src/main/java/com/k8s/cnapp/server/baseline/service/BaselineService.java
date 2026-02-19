@@ -1,7 +1,7 @@
 package com.k8s.cnapp.server.baseline.service;
 
-import com.k8s.cnapp.server.profile.domain.Profile;
-import com.k8s.cnapp.server.profile.repository.ProfileRepository;
+import com.k8s.cnapp.server.profile.domain.PodProfile;
+import com.k8s.cnapp.server.profile.repository.PodProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.math3.stat.descriptive.MultivariateSummaryStatistics;
 import org.springframework.stereotype.Service;
@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class BaselineService {
 
-    private final ProfileRepository profileRepository;
+    private final PodProfileRepository profileRepository;
 
     // 자산별(Namespace/Deployment) 베이스라인 상태 관리
     // Key: AssetKey (namespace/deployment), Value: BaselineStatus
@@ -25,7 +25,7 @@ public class BaselineService {
     private final Map<String, MultivariateSummaryStatistics> baselineStatsMap = new ConcurrentHashMap<>();
 
     @Transactional
-    public void addProfile(Profile profile) {
+    public void addProfile(PodProfile profile) {
         String assetKey = profile.getAssetContext().getAssetKey();
         BaselineStatus status = baselineStatusMap.getOrDefault(assetKey, BaselineStatus.LEARNING);
 
@@ -44,7 +44,7 @@ public class BaselineService {
         // 여기서 최종 통계값(평균, 공분산 행렬 등)을 영구 저장소에 기록해야 함.
     }
 
-    private void updateStatistics(String assetKey, Profile profile) {
+    private void updateStatistics(String assetKey, PodProfile profile) {
         // Apache Commons Math 등을 사용하여 실시간 통계 갱신
         // 실제 구현 시에는 차원 수에 맞는 벡터 연산 필요
     }
