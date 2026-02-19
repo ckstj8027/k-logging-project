@@ -30,7 +30,7 @@ public class HttpDataSender implements DataSender {
     private final Gson gson;
     private final RestTemplate restTemplate;
 
-    @Value("${agent.server.url:http://localhost:8080/api/v1/ingestion/raw}")
+    @Value("${cnapp.server.url:http://localhost:8080/api/v1/ingestion/raw}")
     private String serverUrl;
 
     public HttpDataSender() {
@@ -70,8 +70,8 @@ public class HttpDataSender implements DataSender {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<String> entity = new HttpEntity<>(snapshotJson, headers);
             
-            // 실제 전송 (서버가 준비되면 주석 해제)
-            // restTemplate.postForObject(serverUrl, entity, String.class);
+            // 실제 전송
+            restTemplate.postForObject(serverUrl, entity, String.class);
             
             logger.info("Successfully sent snapshot to server.");
         } catch (RestClientException e) {
