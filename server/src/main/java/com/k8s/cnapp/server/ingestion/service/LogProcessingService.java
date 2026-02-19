@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.k8s.cnapp.server.ingestion.dto.ClusterSnapshot;
 import com.k8s.cnapp.server.profile.domain.*;
 import com.k8s.cnapp.server.profile.repository.*;
+import io.kubernetes.client.custom.IntOrString;
 import io.kubernetes.client.openapi.models.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -312,6 +313,7 @@ public class LogProcessingService {
 
     /**
      * 객체를 JSON 문자열로 변환 (DB 저장용)
+     * - IntOrString 타입 처리를 위한 커스텀 모듈 등록 필요
      */
     private String toJson(Object obj) {
         try {
