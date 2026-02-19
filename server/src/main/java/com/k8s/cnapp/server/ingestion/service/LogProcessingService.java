@@ -126,8 +126,16 @@ public class LogProcessingService {
             Optional<ServiceProfile> existing = serviceProfileRepository.findByNamespaceAndName(namespace, name);
             if (existing.isPresent()) {
                 ServiceProfile sp = existing.get();
-                sp.update(type, clusterIp, externalIps, portsJson);
-                updatedCount++;
+                // 변경 감지: 타입, ClusterIP, ExternalIPs, Ports 정보가 변경된 경우에만 업데이트
+                boolean isChanged = !Objects.equals(sp.getType(), type) ||
+                                    !Objects.equals(sp.getClusterIp(), clusterIp) ||
+                                    !Objects.equals(sp.getExternalIps(), externalIps) ||
+                                    !Objects.equals(sp.getPortsJson(), portsJson);
+                
+                if (isChanged) {
+                    sp.update(type, clusterIp, externalIps, portsJson);
+                    updatedCount++;
+                }
             } else {
                 serviceProfileRepository.save(new ServiceProfile(namespace, name, type, clusterIp, externalIps, portsJson));
                 newCount++;
@@ -160,8 +168,18 @@ public class LogProcessingService {
             Optional<NodeProfile> existing = nodeProfileRepository.findByName(name);
             if (existing.isPresent()) {
                 NodeProfile np = existing.get();
-                np.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
-                updatedCount++;
+                // 변경 감지: OS 이미지, 커널 버전, 런타임 버전 등이 변경된 경우에만 업데이트
+                boolean isChanged = !Objects.equals(np.getOsImage(), osImage) ||
+                                    !Objects.equals(np.getKernelVersion(), kernelVersion) ||
+                                    !Objects.equals(np.getContainerRuntimeVersion(), containerRuntimeVersion) ||
+                                    !Objects.equals(np.getKubeletVersion(), kubeletVersion) ||
+                                    !Objects.equals(np.getCpuCapacity(), cpu) ||
+                                    !Objects.equals(np.getMemoryCapacity(), memory);
+
+                if (isChanged) {
+                    np.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
+                    updatedCount++;
+                }
             } else {
                 nodeProfileRepository.save(new NodeProfile(name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory));
                 newCount++;
@@ -184,6 +202,7 @@ public class LogProcessingService {
             Optional<NamespaceProfile> existing = namespaceProfileRepository.findByName(name);
             if (existing.isPresent()) {
                 NamespaceProfile nsp = existing.get();
+                // 변경 감지: 상태(Status)가 변경된 경우에만 업데이트
                 if (!Objects.equals(nsp.getStatus(), status)) {
                     nsp.update(status);
                     updatedCount++;
@@ -213,6 +232,7 @@ public class LogProcessingService {
             Optional<EventProfile> existing = eventProfileRepository.findByUid(uid);
             if (existing.isPresent()) {
                 EventProfile ep = existing.get();
+                // 변경 감지: Count가 증가했거나 메시지가 변경된 경우에만 업데이트
                 if (!Objects.equals(ep.getCount(), count)) {
                     ep.update(count, lastTimestamp, message);
                     updatedCount++;
@@ -253,8 +273,16 @@ public class LogProcessingService {
             Optional<DeploymentProfile> existing = deploymentProfileRepository.findByNamespaceAndName(namespace, name);
             if (existing.isPresent()) {
                 DeploymentProfile dp = existing.get();
-                dp.update(replicas, availableReplicas, strategy, selectorJson);
-                updatedCount++;
+                // 변경 감지: Replicas, Strategy, Selector 등이 변경된 경우에만 업데이트
+                boolean isChanged = !Objects.equals(dp.getReplicas(), replicas) ||
+                                    !Objects.equals(dp.getAvailableReplicas(), availableReplicas) ||
+                                    !Objects.equals(dp.getStrategyType(), strategy) ||
+                                    !Objects.equals(dp.getSelectorJson(), selectorJson);
+
+                if (isChanged) {
+                    dp.update(replicas, availableReplicas, strategy, selectorJson);
+                    updatedCount++;
+                }
             } else {
                 deploymentProfileRepository.save(new DeploymentProfile(namespace, name, replicas, availableReplicas, strategy, selectorJson));
                 newCount++;
