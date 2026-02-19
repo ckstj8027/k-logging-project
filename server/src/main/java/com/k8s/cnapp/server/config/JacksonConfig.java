@@ -1,6 +1,7 @@
 package com.k8s.cnapp.server.config;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
@@ -26,6 +27,9 @@ public class JacksonConfig {
         SimpleModule module = new SimpleModule();
         module.addSerializer(IntOrString.class, new IntOrStringSerializer());
         mapper.registerModule(module);
+
+        // 알 수 없는 속성(Unrecognized Property) 무시 설정
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
         return mapper;
     }
