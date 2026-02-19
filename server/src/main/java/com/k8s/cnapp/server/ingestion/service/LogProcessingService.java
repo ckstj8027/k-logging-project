@@ -21,7 +21,7 @@ import java.util.*;
 public class LogProcessingService {
 
     private final ObjectMapper objectMapper;
-    private final ProfileRepository profileRepository;
+    private final PodProfileRepository podProfileRepository;
     private final ServiceProfileRepository serviceProfileRepository;
     private final NodeProfileRepository nodeProfileRepository;
     private final NamespaceProfileRepository namespaceProfileRepository;
@@ -70,7 +70,7 @@ public class LogProcessingService {
     }
 
     /**
-     * Pod 정보를 처리하여 Profile 엔티티로 저장 또는 업데이트
+     * Pod 정보를 처리하여 PodProfile 엔티티로 저장 또는 업데이트
      * - 중복 방지: Namespace + PodName + ContainerName 조합으로 기존 데이터 확인
      * - 변경 감지: 이미지나 Deployment 정보가 변경된 경우에만 업데이트
      */
@@ -92,9 +92,9 @@ public class LogProcessingService {
             String deploymentName = extractDeploymentName(pod);
 
             // DB 조회 (Upsert 로직)
-            Optional<Profile> existing = profileRepository.findByAssetContext_NamespaceAndAssetContext_PodNameAndAssetContext_ContainerName(namespace, podName, containerName);
+            Optional<PodProfile> existing = podProfileRepository.findByAssetContext_NamespaceAndAssetContext_PodNameAndAssetContext_ContainerName(namespace, podName, containerName);
             if (existing.isPresent()) {
-                Profile p = existing.get();
+                PodProfile p = existing.get();
                 // 변경 사항이 있을 때만 업데이트 (Dirty Checking)
                 if (!Objects.equals(p.getAssetContext().getImage(), image) || !Objects.equals(p.getAssetContext().getDeploymentName(), deploymentName)) {
                     p.updateAssetContext(new AssetContext(namespace, podName, containerName, image, deploymentName));
@@ -102,7 +102,7 @@ public class LogProcessingService {
                 }
             } else {
                 // 신규 생성
-                profileRepository.save(new Profile(new AssetContext(namespace, podName, containerName, image, deploymentName), Collections.emptyMap(), Profile.ProfileType.LEARNING));
+                podProfileRepository.save(new PodProfile(new AssetContext(namespace, podName, containerName, image, deploymentName), Collections.emptyMap(), PodProfile.ProfileType.LEARNING));
                 newCount++;
             }
         }
