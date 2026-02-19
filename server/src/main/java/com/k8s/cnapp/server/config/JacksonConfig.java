@@ -26,7 +26,7 @@ public class JacksonConfig {
     public static class IntOrStringSerializer extends JsonSerializer<IntOrString> {
         @Override
         public void serialize(IntOrString value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
-            if (value.isInt()) {
+            if (value.isInteger()) {
                 gen.writeNumber(value.getIntValue());
             } else {
                 gen.writeString(value.getStrValue());
