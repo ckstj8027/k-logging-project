@@ -19,7 +19,7 @@ COPY . .
 RUN ./gradlew :server:bootJar -x test --no-daemon
 
 # 2. Run Stage
-FROM openjdk:17-jdk-slim
+FROM openjdk:17.0.2
 WORKDIR /app
 
 # 빌드된 Jar 파일 복사 (경로 주의: server/build/libs/...)
