@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.kubernetes.client.custom.IntOrString;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,9 +18,15 @@ public class JacksonConfig {
     @Bean
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
+        
+        // Java 8 Date/Time (OffsetDateTime 등) 지원 모듈 등록
+        mapper.registerModule(new JavaTimeModule());
+        
+        // IntOrString 커스텀 시리얼라이저 등록
         SimpleModule module = new SimpleModule();
         module.addSerializer(IntOrString.class, new IntOrStringSerializer());
         mapper.registerModule(module);
+
         return mapper;
     }
 

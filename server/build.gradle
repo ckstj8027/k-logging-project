@@ -25,6 +25,9 @@ dependencies {
     // Kubernetes Client Models (DTO 매핑용)
     implementation 'io.kubernetes:client-java:18.0.0'
     
+    // Jackson JSR310 (Java 8 Date/Time) 지원
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
     // 누락된 의존성 명시적 추가
     implementation 'com.fasterxml:classmate:1.7.0'
     
