@@ -1,9 +1,22 @@
+# 1. 실제 저장 공간 생성 (Pending 해결의 핵심)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: "/mnt/data/mysql" # VM 내부에 실제 데이터가 저장될 경로
+---
+# 2. 저장 공간 요청
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: mysql-pvc
-  labels:
-    app: mysql
 spec:
   accessModes:
     - ReadWriteOnce
@@ -11,12 +24,11 @@ spec:
     requests:
       storage: 1Gi
 ---
+# 3. MySQL 배포
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mysql
-  labels:
-    app: mysql
 spec:
   selector:
     matchLabels:
@@ -29,32 +41,32 @@ spec:
         app: mysql
     spec:
       containers:
-      - image: mysql:8.0
-        name: mysql
-        env:
-        - name: MYSQL_ROOT_PASSWORD
-          value: password
-        - name: MYSQL_DATABASE
-          value: cnappdb
-        ports:
-        - containerPort: 3306
+        - image: mysql:8.0
           name: mysql
-        volumeMounts:
-        - name: mysql-persistent-storage
-          mountPath: /var/lib/mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: password
+            - name: MYSQL_DATABASE
+              value: cnappdb
+          ports:
+            - containerPort: 3306
+              name: mysql
+          volumeMounts:
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
       volumes:
-      - name: mysql-persistent-storage
-        persistentVolumeClaim:
-          claimName: mysql-pvc
+        - name: mysql-persistent-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
 ---
+# 4. 내부 서비스 (ClusterIP 유지)
 apiVersion: v1
 kind: Service
 metadata:
   name: mysql
-  labels:
-    app: mysql
 spec:
   ports:
-  - port: 3306
+    - port: 3306
+      targetPort: 3306
   selector:
     app: mysql

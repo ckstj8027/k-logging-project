@@ -7,16 +7,15 @@ import com.k8s.cnapp.server.profile.domain.AssetContext;
 import com.k8s.cnapp.server.profile.domain.Profile;
 import com.k8s.cnapp.server.profile.repository.ProfileRepository;
 import io.kubernetes.client.openapi.models.V1Container;
+import io.kubernetes.client.openapi.models.V1Deployment;
+import io.kubernetes.client.openapi.models.V1OwnerReference;
 import io.kubernetes.client.openapi.models.V1Pod;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -35,14 +34,8 @@ public class LogProcessingService {
             // 2. 로그 요약 출력
             logSummary(snapshot);
 
-            // 3. Profile 변환 및 처리
-            List<Profile> profiles = convertToProfiles(snapshot.pods());
-            
-            // 4. 저장
-            if (!profiles.isEmpty()) {
-                profileRepository.saveAll(profiles);
-                log.info("Saved {} profiles to database.", profiles.size());
-            }
+            // 3. Profile 변환 및 Upsert 처리
+            processProfiles(snapshot);
 
         } catch (JsonProcessingException e) {
             log.error("Failed to parse raw data to ClusterSnapshot", e);
@@ -59,12 +52,15 @@ public class LogProcessingService {
                 podCount, nodeCount, serviceCount, deploymentCount);
     }
 
-    private List<Profile> convertToProfiles(List<V1Pod> pods) {
+    private void processProfiles(ClusterSnapshot snapshot) {
+        List<V1Pod> pods = snapshot.pods();
         if (pods == null || pods.isEmpty()) {
-            return Collections.emptyList();
+            return;
         }
 
-        List<Profile> profiles = new ArrayList<>();
+        int savedCount = 0;
+        int updatedCount = 0;
+
         for (V1Pod pod : pods) {
             if (pod.getMetadata() == null || pod.getSpec() == null) {
                 continue;
@@ -73,7 +69,7 @@ public class LogProcessingService {
             String namespace = pod.getMetadata().getNamespace();
             String podName = pod.getMetadata().getName();
             
-            // 첫 번째 컨테이너 정보 추출
+            // 첫 번째 컨테이너 정보 추출 (멀티 컨테이너 지원 필요 시 루프 필요)
             List<V1Container> containers = pod.getSpec().getContainers();
             if (containers == null || containers.isEmpty()) {
                 continue;
@@ -82,28 +78,71 @@ public class LogProcessingService {
             String containerName = container.getName();
             String image = container.getImage();
             
-            // Deployment 이름 추론 (단순화된 로직: podName에서 마지막 하이픈 뒤 제거)
-            // 실제로는 OwnerReferences를 확인하는 것이 정확함
-            String deploymentName = extractDeploymentName(podName);
+            // Deployment 이름 추출 (OwnerReference 활용)
+            String deploymentName = extractDeploymentName(pod);
 
-            AssetContext assetContext = new AssetContext(namespace, podName, containerName, image, deploymentName);
-            
-            // Feature는 현재 비어있는 상태로 초기화 (추후 메트릭 추가 가능)
-            Map<String, Double> features = Collections.emptyMap();
+            // DB 조회 (Upsert 로직)
+            Optional<Profile> existingProfileOpt = profileRepository
+                    .findByAssetContext_NamespaceAndAssetContext_PodNameAndAssetContext_ContainerName(
+                            namespace, podName, containerName);
 
-            // 기본값으로 LEARNING 모드 설정
-            Profile profile = new Profile(assetContext, features, Profile.ProfileType.LEARNING);
-            profiles.add(profile);
+            if (existingProfileOpt.isPresent()) {
+                // UPDATE: 이미지가 변경되었거나 Deployment 정보가 업데이트 되었을 수 있음
+                Profile existingProfile = existingProfileOpt.get();
+                
+                // 변경 사항이 있을 때만 업데이트 (Dirty Checking)
+                boolean isChanged = false;
+                if (!Objects.equals(existingProfile.getAssetContext().getImage(), image)) {
+                    isChanged = true;
+                }
+                if (!Objects.equals(existingProfile.getAssetContext().getDeploymentName(), deploymentName)) {
+                    isChanged = true;
+                }
+
+                if (isChanged) {
+                    AssetContext newContext = new AssetContext(namespace, podName, containerName, image, deploymentName);
+                    existingProfile.updateAssetContext(newContext);
+                    updatedCount++;
+                }
+                // lastSeen 업데이트 효과 (JPA Auditing @UpdateTimestamp)
+            } else {
+                // INSERT: 새로운 Pod 발견
+                AssetContext assetContext = new AssetContext(namespace, podName, containerName, image, deploymentName);
+                Map<String, Double> features = Collections.emptyMap();
+                Profile newProfile = new Profile(assetContext, features, Profile.ProfileType.LEARNING);
+                profileRepository.save(newProfile);
+                savedCount++;
+            }
         }
-        return profiles;
+        
+        log.info("Processed Profiles: New={}, Updated={}", savedCount, updatedCount);
     }
 
-    private String extractDeploymentName(String podName) {
-        if (podName == null) return null;
-        // 예: my-app-7d8f9c-abcde -> my-app
-        // 간단하게 마지막 두 개의 하이픈 세그먼트를 제거하는 방식 (ReplicaSet hash + Pod hash)
-        // 하지만 정확하지 않을 수 있으므로 여기서는 null로 두거나 단순 처리
-        // 일단은 null로 처리하고 필요 시 로직 고도화
-        return null; 
+    private String extractDeploymentName(V1Pod pod) {
+        if (pod.getMetadata().getOwnerReferences() == null) {
+            return null;
+        }
+
+        for (V1OwnerReference owner : pod.getMetadata().getOwnerReferences()) {
+            // 1. Deployment가 직접 Owner인 경우 (드물지만 가능)
+            if ("Deployment".equals(owner.getKind())) {
+                return owner.getName();
+            }
+            // 2. ReplicaSet이 Owner인 경우 (일반적인 Deployment 패턴)
+            else if ("ReplicaSet".equals(owner.getKind())) {
+                // ReplicaSet 이름에서 Deployment 이름 유추 (보통 rsName은 deployName-hash 형태)
+                String rsName = owner.getName();
+                int lastHyphen = rsName.lastIndexOf('-');
+                if (lastHyphen > 0) {
+                    return rsName.substring(0, lastHyphen);
+                }
+                return rsName;
+            }
+            // 3. DaemonSet, StatefulSet
+            else if ("DaemonSet".equals(owner.getKind()) || "StatefulSet".equals(owner.getKind())) {
+                return owner.getName();
+            }
+        }
+        return null;
     }
 }

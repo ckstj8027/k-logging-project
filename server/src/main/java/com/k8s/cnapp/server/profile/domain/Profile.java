@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -12,7 +13,9 @@ import java.util.Map;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "profiles")
+@Table(name = "profiles", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_profile_asset", columnNames = {"namespace", "pod_name", "container_name"})
+})
 public class Profile {
 
     @Id
@@ -37,6 +40,9 @@ public class Profile {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
     // 학습용인지, 실제 탐지용인지 구분 (나중에 베이스라인 구축 시 사용)
     @Enumerated(EnumType.STRING)
     private ProfileType type;
@@ -45,6 +51,15 @@ public class Profile {
         this.assetContext = assetContext;
         this.features = features;
         this.type = type;
+    }
+
+    public void updateFeatures(Map<String, Double> newFeatures) {
+        this.features.clear();
+        this.features.putAll(newFeatures);
+    }
+
+    public void updateAssetContext(AssetContext newAssetContext) {
+        this.assetContext = newAssetContext;
     }
 
     public enum ProfileType {
