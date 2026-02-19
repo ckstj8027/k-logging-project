@@ -111,6 +111,7 @@ public class LogProcessingService {
 
     /**
      * Service 정보를 처리하여 ServiceProfile 엔티티로 저장 또는 업데이트
+     * - ServicePortProfile 엔티티를 사용하여 포트 정보를 정규화된 형태로 저장
      */
     private void processServices(List<V1Service> services) {
         if (services == null) return;
@@ -122,23 +123,39 @@ public class LogProcessingService {
             String type = service.getSpec().getType();
             String clusterIp = service.getSpec().getClusterIP();
             String externalIps = service.getSpec().getExternalIPs() != null ? String.join(",", service.getSpec().getExternalIPs()) : null;
-            String portsJson = toJson(service.getSpec().getPorts());
-
+            
             Optional<ServiceProfile> existing = serviceProfileRepository.findByNamespaceAndName(namespace, name);
             if (existing.isPresent()) {
                 ServiceProfile sp = existing.get();
-                // 변경 감지: 타입, ClusterIP, ExternalIPs, Ports 정보가 변경된 경우에만 업데이트
+                // 변경 감지: 타입, ClusterIP, ExternalIPs 정보가 변경된 경우에만 업데이트
                 boolean isChanged = !Objects.equals(sp.getType(), type) ||
                                     !Objects.equals(sp.getClusterIp(), clusterIp) ||
-                                    !Objects.equals(sp.getExternalIps(), externalIps) ||
-                                    !Objects.equals(sp.getPortsJson(), portsJson);
+                                    !Objects.equals(sp.getExternalIps(), externalIps);
                 
+                // 포트 정보는 복잡하므로, 일단 기존 포트를 모두 지우고 새로 추가하는 방식으로 갱신 (단순화)
+                // 실제 운영 환경에서는 포트 리스트를 비교하여 변경된 것만 처리하는 것이 좋음
+                sp.clearPorts();
+                if (service.getSpec().getPorts() != null) {
+                    for (V1ServicePort port : service.getSpec().getPorts()) {
+                        String targetPort = port.getTargetPort() != null ? port.getTargetPort().toString() : null;
+                        sp.addPort(new ServicePortProfile(port.getName(), port.getProtocol(), port.getPort(), targetPort, port.getNodePort()));
+                        isChanged = true; // 포트가 갱신되었으므로 변경된 것으로 간주
+                    }
+                }
+
                 if (isChanged) {
-                    sp.update(type, clusterIp, externalIps, portsJson);
+                    sp.update(type, clusterIp, externalIps);
                     updatedCount++;
                 }
             } else {
-                serviceProfileRepository.save(new ServiceProfile(namespace, name, type, clusterIp, externalIps, portsJson));
+                ServiceProfile newSp = new ServiceProfile(namespace, name, type, clusterIp, externalIps);
+                if (service.getSpec().getPorts() != null) {
+                    for (V1ServicePort port : service.getSpec().getPorts()) {
+                        String targetPort = port.getTargetPort() != null ? port.getTargetPort().toString() : null;
+                        newSp.addPort(new ServicePortProfile(port.getName(), port.getProtocol(), port.getPort(), targetPort, port.getNodePort()));
+                    }
+                }
+                serviceProfileRepository.save(newSp);
                 newCount++;
             }
         }

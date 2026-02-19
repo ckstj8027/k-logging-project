@@ -8,6 +8,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -36,8 +38,9 @@ public class ServiceProfile {
     @Column(name = "external_ips")
     private String externalIps; // Comma separated
 
-    @Column(name = "ports_json", columnDefinition = "TEXT")
-    private String portsJson; // JSON string of ports
+    // JSON 필드 대신 정규화된 테이블 사용
+    @OneToMany(mappedBy = "serviceProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ServicePortProfile> ports = new ArrayList<>();
 
     @CreationTimestamp
     private LocalDateTime createdAt;
@@ -45,19 +48,26 @@ public class ServiceProfile {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public ServiceProfile(String namespace, String name, String type, String clusterIp, String externalIps, String portsJson) {
+    public ServiceProfile(String namespace, String name, String type, String clusterIp, String externalIps) {
         this.namespace = namespace;
         this.name = name;
         this.type = type;
         this.clusterIp = clusterIp;
         this.externalIps = externalIps;
-        this.portsJson = portsJson;
     }
 
-    public void update(String type, String clusterIp, String externalIps, String portsJson) {
+    public void update(String type, String clusterIp, String externalIps) {
         this.type = type;
         this.clusterIp = clusterIp;
         this.externalIps = externalIps;
-        this.portsJson = portsJson;
+    }
+
+    public void addPort(ServicePortProfile port) {
+        this.ports.add(port);
+        port.setServiceProfile(this);
+    }
+
+    public void clearPorts() {
+        this.ports.clear();
     }
 }
