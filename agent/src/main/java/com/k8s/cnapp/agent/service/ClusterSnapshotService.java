@@ -2,6 +2,7 @@ package com.k8s.cnapp.agent.service;
 
 import com.k8s.cnapp.agent.dto.ClusterSnapshot;
 import com.k8s.cnapp.agent.queue.SnapshotBlockingQueue;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ClusterSnapshotService {
@@ -77,15 +79,34 @@ public class ClusterSnapshotService {
         T run() throws ApiException;
     }
 
-    private <T> List<T> fetchItems(ApiRunner<List<T>> runner) {
+    private <T extends KubernetesObject> List<T> fetchItems(ApiRunner<List<T>> runner) {
         try {
             List<T> items = runner.run();
-            return items != null ? items : Collections.emptyList();
+            if (items != null) {
+                items.forEach(this::sanitize);
+                return items;
+            }
         } catch (ApiException e) {
             logger.error("K8s API Error: {} - {}", e.getCode(), e.getResponseBody());
         } catch (Exception e) {
             logger.error("Error fetching resources", e);
         }
         return Collections.emptyList();
+    }
+
+    private void sanitize(KubernetesObject item) {
+        if (item.getMetadata() != null) {
+            // 1. managedFields 제거 (불필요한 메타데이터)
+            item.getMetadata().setManagedFields(null);
+
+            // 2. last-applied-configuration 제거 (용량 과다)
+            Map<String, String> annotations = item.getMetadata().getAnnotations();
+            if (annotations != null) {
+                annotations.remove("kubectl.kubernetes.io/last-applied-configuration");
+                if (annotations.isEmpty()) {
+                    item.getMetadata().setAnnotations(null);
+                }
+            }
+        }
     }
 }
