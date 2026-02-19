@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.k8s.cnapp.server.ingestion.dto.ClusterSnapshot;
 import com.k8s.cnapp.server.profile.domain.AssetContext;
 import com.k8s.cnapp.server.profile.domain.Profile;
+import com.k8s.cnapp.server.profile.repository.ProfileRepository;
 import io.kubernetes.client.openapi.models.V1Container;
 import io.kubernetes.client.openapi.models.V1Pod;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +24,7 @@ import java.util.Map;
 public class LogProcessingService {
 
     private final ObjectMapper objectMapper;
-    // private final ProfileRepository profileRepository; // 추후 저장 시 필요
+    private final ProfileRepository profileRepository;
 
     @Transactional
     public void processRawData(String rawData) {
@@ -37,9 +38,11 @@ public class LogProcessingService {
             // 3. Profile 변환 및 처리
             List<Profile> profiles = convertToProfiles(snapshot.pods());
             
-            // 4. (Optional) 저장 또는 BaselineService 전달
-            // profileRepository.saveAll(profiles);
-            log.info("Converted {} profiles from snapshot.", profiles.size());
+            // 4. 저장
+            if (!profiles.isEmpty()) {
+                profileRepository.saveAll(profiles);
+                log.info("Saved {} profiles to database.", profiles.size());
+            }
 
         } catch (JsonProcessingException e) {
             log.error("Failed to parse raw data to ClusterSnapshot", e);

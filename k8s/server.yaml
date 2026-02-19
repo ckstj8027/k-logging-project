@@ -20,6 +20,13 @@ spec:
         ports:
         - containerPort: 8080
         imagePullPolicy: Always
+        env:
+        - name: DB_URL
+          value: "jdbc:mysql://mysql:3306/cnappdb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+        - name: DB_USERNAME
+          value: "root"
+        - name: DB_PASSWORD
+          value: "password"
 ---
 apiVersion: v1
 kind: Service
