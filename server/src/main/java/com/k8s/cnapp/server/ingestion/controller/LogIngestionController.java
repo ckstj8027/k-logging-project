@@ -2,7 +2,7 @@ package com.k8s.cnapp.server.ingestion.controller;
 
 import com.k8s.cnapp.server.ingestion.port.LogIngestionPort;
 import com.k8s.cnapp.server.ingestion.service.LogProcessingService;
-import com.k8s.cnapp.server.profile.domain.Profile;
+import com.k8s.cnapp.server.profile.domain.PodProfile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,7 +27,7 @@ public class LogIngestionController implements LogIngestionPort {
 
     @PostMapping("/profile")
     @Override
-    public void ingest(@RequestBody Profile profile) {
+    public void ingest(@RequestBody PodProfile profile) {
         // 1. Profile 객체 수신 (Agent가 이미 가공한 경우)
         // 2. BaselineService로 전달 (추후 구현)
         log.info("Received profile: {}", profile.getAssetContext().getAssetKey());
