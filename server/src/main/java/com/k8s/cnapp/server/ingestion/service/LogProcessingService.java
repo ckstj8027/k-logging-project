@@ -91,6 +91,25 @@ public class LogProcessingService {
             String image = container.getImage();
             String deploymentName = extractDeploymentName(pod);
 
+            // Security Context 추출
+            Boolean privileged = null;
+            Long runAsUser = null;
+            Boolean allowPrivilegeEscalation = null;
+            Boolean readOnlyRootFilesystem = null;
+
+            V1SecurityContext securityContext = container.getSecurityContext();
+            if (securityContext != null) {
+                privileged = securityContext.getPrivileged();
+                runAsUser = securityContext.getRunAsUser();
+                allowPrivilegeEscalation = securityContext.getAllowPrivilegeEscalation();
+                readOnlyRootFilesystem = securityContext.getReadOnlyRootFilesystem();
+            }
+
+            // Pod 레벨 Security Context (runAsUser fallback)
+            if (runAsUser == null && pod.getSpec().getSecurityContext() != null) {
+                runAsUser = pod.getSpec().getSecurityContext().getRunAsUser();
+            }
+
             // DB 조회 (Upsert 로직)
             Optional<PodProfile> existing = podProfileRepository.findByAssetContext_NamespaceAndAssetContext_PodNameAndAssetContext_ContainerName(namespace, podName, containerName);
             if (existing.isPresent()) {
@@ -102,7 +121,14 @@ public class LogProcessingService {
                 }
             } else {
                 // 신규 생성
-                podProfileRepository.save(new PodProfile(new AssetContext(namespace, podName, containerName, image, deploymentName), Collections.emptyMap(), PodProfile.ProfileType.LEARNING));
+                podProfileRepository.save(new PodProfile(
+                        new AssetContext(namespace, podName, containerName, image, deploymentName),
+                        Collections.emptyMap(),
+                        privileged,
+                        runAsUser,
+                        allowPrivilegeEscalation,
+                        readOnlyRootFilesystem
+                ));
                 newCount++;
             }
         }
