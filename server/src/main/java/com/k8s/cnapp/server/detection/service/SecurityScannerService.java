@@ -35,17 +35,22 @@ public class SecurityScannerService {
 
     // 1분마다 스캔 실행
     @Scheduled(fixedRate = 60000)
-    @Transactional(readOnly = true)
+    @Transactional // readOnly = true 제거 (Alert 저장을 위해)
     public void scan() {
         log.info("Starting security scan...");
-        scanPods();
-        scanServices();
-        scanDeployments();
-        log.info("Security scan completed.");
+        try {
+            scanPods();
+            scanServices();
+            scanDeployments();
+            log.info("Security scan completed.");
+        } catch (Exception e) {
+            log.error("Error during security scan", e);
+        }
     }
 
     private void scanPods() {
         List<PodProfile> pods = podProfileRepository.findAll();
+        log.info("Scanning {} pods...", pods.size()); // 스캔 대상 개수 로그 추가
         for (PodProfile pod : pods) {
             String resourceName = pod.getAssetContext().getAssetKey();
 
@@ -77,6 +82,7 @@ public class SecurityScannerService {
 
     private void scanServices() {
         List<ServiceProfile> services = serviceProfileRepository.findAll();
+        log.info("Scanning {} services...", services.size());
         for (ServiceProfile service : services) {
             String resourceName = service.getNamespace() + "/" + service.getName();
 
@@ -99,6 +105,7 @@ public class SecurityScannerService {
 
     private void scanDeployments() {
         List<DeploymentProfile> deployments = deploymentProfileRepository.findAll();
+        log.info("Scanning {} deployments...", deployments.size());
         for (DeploymentProfile deployment : deployments) {
             String resourceName = deployment.getNamespace() + "/" + deployment.getName();
 
