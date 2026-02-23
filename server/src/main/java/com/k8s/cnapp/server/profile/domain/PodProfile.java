@@ -23,13 +23,26 @@ public class PodProfile {
     private Long id;
 
     // --- Asset Context (자산 정보) ---
-    // 어떤 리소스에서 발생한 프로필인지 식별
     @Embedded
     private AssetContext assetContext;
 
-    // --- Feature Vector (통계적 특징) ---
-    // 다차원 공간의 한 점 (예: [연결 수, 패킷 크기 평균, 에러율, ...])
-    // JSON 형태로 저장하거나 별도 테이블로 분리할 수 있음. 여기서는 단순화를 위해 ElementCollection 사용
+    // --- Security Context (보안 설정) ---
+    @Column(name = "privileged")
+    private Boolean privileged;
+
+    @Column(name = "run_as_user")
+    private Long runAsUser;
+
+    @Column(name = "run_as_root")
+    private Boolean runAsRoot; // runAsUser == 0 인 경우 true
+
+    @Column(name = "allow_privilege_escalation")
+    private Boolean allowPrivilegeEscalation;
+
+    @Column(name = "read_only_root_filesystem")
+    private Boolean readOnlyRootFilesystem;
+
+    // --- Feature Vector (통계적 특징 - 추후 eBPF 연동 시 사용 가능) ---
     @ElementCollection
     @CollectionTable(name = "pod_profile_features", joinColumns = @JoinColumn(name = "pod_profile_id"))
     @MapKeyColumn(name = "feature_name")
@@ -43,14 +56,17 @@ public class PodProfile {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    // 학습용인지, 실제 탐지용인지 구분 (나중에 베이스라인 구축 시 사용)
-    @Enumerated(EnumType.STRING)
-    private ProfileType type;
+    // Type 필드 삭제 (Learning/Inference 구분 없음)
 
-    public PodProfile(AssetContext assetContext, Map<String, Double> features, ProfileType type) {
+    public PodProfile(AssetContext assetContext, Map<String, Double> features,
+                      Boolean privileged, Long runAsUser, Boolean allowPrivilegeEscalation, Boolean readOnlyRootFilesystem) {
         this.assetContext = assetContext;
         this.features = features;
-        this.type = type;
+        this.privileged = privileged;
+        this.runAsUser = runAsUser;
+        this.runAsRoot = (runAsUser != null && runAsUser == 0);
+        this.allowPrivilegeEscalation = allowPrivilegeEscalation;
+        this.readOnlyRootFilesystem = readOnlyRootFilesystem;
     }
 
     public void updateFeatures(Map<String, Double> newFeatures) {
@@ -62,8 +78,11 @@ public class PodProfile {
         this.assetContext = newAssetContext;
     }
 
-    public enum ProfileType {
-        LEARNING, // 학습 데이터 (베이스라인 구축용)
-        INFERENCE // 추론 데이터 (이상 탐지용)
+    public void updateSecurityContext(Boolean privileged, Long runAsUser, Boolean allowPrivilegeEscalation, Boolean readOnlyRootFilesystem) {
+        this.privileged = privileged;
+        this.runAsUser = runAsUser;
+        this.runAsRoot = (runAsUser != null && runAsUser == 0);
+        this.allowPrivilegeEscalation = allowPrivilegeEscalation;
+        this.readOnlyRootFilesystem = readOnlyRootFilesystem;
     }
 }

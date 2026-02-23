@@ -14,10 +14,5 @@ public interface LogIngestionPort {
      */
     void ingest(String rawData);
 
-    /**
-     * 이미 가공된 프로필 객체를 수신하여 처리.
-     * (Agent에서 1차 가공 후 전송하는 경우)
-     * @param profile 프로필 객체
-     */
-    void ingest(PodProfile profile);
+
 }

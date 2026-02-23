@@ -25,11 +25,5 @@ public class LogIngestionController implements LogIngestionPort {
         logProcessingService.processRawData(rawData);
     }
 
-    @PostMapping("/profile")
-    @Override
-    public void ingest(@RequestBody PodProfile profile) {
-        // 1. Profile 객체 수신 (Agent가 이미 가공한 경우)
-        // 2. BaselineService로 전달 (추후 구현)
-        log.info("Received profile: {}", profile.getAssetContext().getAssetKey());
-    }
+
 }
