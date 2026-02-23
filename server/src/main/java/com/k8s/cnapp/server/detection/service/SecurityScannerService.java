@@ -81,7 +81,8 @@ public class SecurityScannerService {
     }
 
     private void scanServices() {
-        List<ServiceProfile> services = serviceProfileRepository.findAll();
+        // N+1 문제 해결을 위해 Fetch Join 사용
+        List<ServiceProfile> services = serviceProfileRepository.findAllWithPorts();
         log.info("Scanning {} services...", services.size());
         for (ServiceProfile service : services) {
             String resourceName = service.getNamespace() + "/" + service.getName();
