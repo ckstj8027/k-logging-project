@@ -10,9 +10,9 @@ import java.util.Optional;
 @Repository
 public interface PodProfileRepository extends JpaRepository<PodProfile, Long> {
 
-    // 특정 자산(Namespace/Deployment)의 학습용 프로필 조회
-    List<PodProfile> findByAssetContext_NamespaceAndAssetContext_DeploymentNameAndType(
-            String namespace, String deploymentName, PodProfile.ProfileType type);
+    // 특정 자산(Namespace/Deployment)의 프로필 조회 (Type 필드 제거됨)
+    List<PodProfile> findByAssetContext_NamespaceAndAssetContext_DeploymentName(
+            String namespace, String deploymentName);
 
     // 중복 체크 및 Upsert를 위한 조회 메서드
     Optional<PodProfile> findByAssetContext_NamespaceAndAssetContext_PodNameAndAssetContext_ContainerName(
