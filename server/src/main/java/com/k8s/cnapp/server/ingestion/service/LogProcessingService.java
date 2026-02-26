@@ -62,16 +62,16 @@ public class LogProcessingService {
     private void processPods(List<V1Pod> pods) {
         if (pods == null || pods.isEmpty()) return;
 
-        // 1. Bulk Fetch & Map Mapping (Duplicate Key 해결)
         List<PodProfile> existingProfiles = podProfileRepository.findAll();
         Map<String, PodProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         p -> p.getAssetContext().getAssetKey() + "/" + p.getAssetContext().getContainerName(),
                         Function.identity(),
-                        (existing, replacement) -> existing // 중복 키 발생 시 기존 값 유지
+                        (existing, replacement) -> existing
                 ));
 
         List<PodProfile> toSave = new ArrayList<>();
+        Set<String> processedKeys = new HashSet<>(); // 중복 방지용 Set
 
         for (V1Pod pod : pods) {
             if (pod.getMetadata() == null || pod.getSpec() == null) continue;
@@ -86,7 +86,8 @@ public class LogProcessingService {
             String deploymentName = extractDeploymentName(pod);
             String key = String.format("%s/%s/%s", namespace, deploymentName != null ? deploymentName : podName, containerName);
 
-            // Security Context
+            if (processedKeys.contains(key)) continue; // 이미 처리된 키는 스킵
+
             Boolean privileged = null;
             Long runAsUser = null;
             Boolean allowPrivilegeEscalation = null;
@@ -105,12 +106,9 @@ public class LogProcessingService {
 
             PodProfile existing = profileMap.get(key);
             if (existing != null) {
-                // Update (Dirty Checking으로 자동 반영되지만, 명시적 처리를 위해 로직 유지)
                 existing.updateAssetContext(new AssetContext(namespace, podName, containerName, image, deploymentName));
                 existing.updateSecurityContext(privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem);
-                // 기존 객체는 toSave에 넣지 않아도 @Transactional에 의해 업데이트됨
             } else {
-                // Insert (신규 객체만 리스트에 추가)
                 toSave.add(new PodProfile(
                         new AssetContext(namespace, podName, containerName, image, deploymentName),
                         Collections.emptyMap(),
@@ -120,9 +118,9 @@ public class LogProcessingService {
                         readOnlyRootFilesystem
                 ));
             }
+            processedKeys.add(key); // 처리 완료 마킹
         }
         
-        // 4. Batch Save (신규 객체만 저장)
         if (!toSave.isEmpty()) {
             podProfileRepository.saveAll(toSave);
         }
@@ -141,12 +139,15 @@ public class LogProcessingService {
                 ));
 
         List<ServiceProfile> toSave = new ArrayList<>();
+        Set<String> processedKeys = new HashSet<>();
 
         for (V1Service service : services) {
             if (service.getMetadata() == null || service.getSpec() == null) continue;
             String namespace = service.getMetadata().getNamespace();
             String name = service.getMetadata().getName();
             String key = namespace + "/" + name;
+
+            if (processedKeys.contains(key)) continue;
 
             String type = service.getSpec().getType();
             String clusterIp = service.getSpec().getClusterIP();
@@ -155,7 +156,6 @@ public class LogProcessingService {
             ServiceProfile existing = profileMap.get(key);
             if (existing != null) {
                 existing.update(type, clusterIp, externalIps);
-                
                 existing.clearPorts();
                 if (service.getSpec().getPorts() != null) {
                     for (V1ServicePort port : service.getSpec().getPorts()) {
@@ -173,6 +173,7 @@ public class LogProcessingService {
                 }
                 toSave.add(newSp);
             }
+            processedKeys.add(key);
         }
         
         if (!toSave.isEmpty()) {
@@ -193,10 +194,14 @@ public class LogProcessingService {
                 ));
 
         List<NodeProfile> toSave = new ArrayList<>();
+        Set<String> processedKeys = new HashSet<>();
 
         for (V1Node node : nodes) {
             if (node.getMetadata() == null || node.getStatus() == null) continue;
             String name = node.getMetadata().getName();
+            
+            if (processedKeys.contains(name)) continue;
+
             V1NodeSystemInfo nodeInfo = node.getStatus().getNodeInfo();
             String osImage = nodeInfo.getOsImage();
             String kernelVersion = nodeInfo.getKernelVersion();
@@ -214,6 +219,7 @@ public class LogProcessingService {
             } else {
                 toSave.add(new NodeProfile(name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory));
             }
+            processedKeys.add(name);
         }
         
         if (!toSave.isEmpty()) {
@@ -234,10 +240,14 @@ public class LogProcessingService {
                 ));
 
         List<NamespaceProfile> toSave = new ArrayList<>();
+        Set<String> processedKeys = new HashSet<>();
 
         for (V1Namespace ns : namespaces) {
             if (ns.getMetadata() == null || ns.getStatus() == null) continue;
             String name = ns.getMetadata().getName();
+            
+            if (processedKeys.contains(name)) continue;
+
             String status = ns.getStatus().getPhase();
 
             NamespaceProfile existing = profileMap.get(name);
@@ -246,6 +256,7 @@ public class LogProcessingService {
             } else {
                 toSave.add(new NamespaceProfile(name, status));
             }
+            processedKeys.add(name);
         }
         
         if (!toSave.isEmpty()) {
@@ -266,10 +277,14 @@ public class LogProcessingService {
                 ));
 
         List<EventProfile> toSave = new ArrayList<>();
+        Set<String> processedKeys = new HashSet<>();
 
         for (CoreV1Event event : events) {
             if (event.getMetadata() == null || event.getInvolvedObject() == null) continue;
             String uid = event.getMetadata().getUid();
+            
+            if (processedKeys.contains(uid)) continue;
+
             Integer count = event.getCount();
             OffsetDateTime lastTimestamp = event.getLastTimestamp();
             String message = event.getMessage();
@@ -290,6 +305,7 @@ public class LogProcessingService {
                         uid
                 ));
             }
+            processedKeys.add(uid);
         }
         
         if (!toSave.isEmpty()) {
@@ -310,12 +326,15 @@ public class LogProcessingService {
                 ));
 
         List<DeploymentProfile> toSave = new ArrayList<>();
+        Set<String> processedKeys = new HashSet<>();
 
         for (V1Deployment dep : deployments) {
             if (dep.getMetadata() == null || dep.getSpec() == null) continue;
             String namespace = dep.getMetadata().getNamespace();
             String name = dep.getMetadata().getName();
             String key = namespace + "/" + name;
+
+            if (processedKeys.contains(key)) continue;
 
             Integer replicas = dep.getSpec().getReplicas();
             Integer availableReplicas = dep.getStatus() != null ? dep.getStatus().getAvailableReplicas() : 0;
@@ -328,6 +347,7 @@ public class LogProcessingService {
             } else {
                 toSave.add(new DeploymentProfile(namespace, name, replicas, availableReplicas, strategy, selectorJson));
             }
+            processedKeys.add(key);
         }
         
         if (!toSave.isEmpty()) {
