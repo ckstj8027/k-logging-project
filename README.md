@@ -1,4 +1,9 @@
 
+아키텍처
+![Uploading Gemini_Generated_Image_h4ta55h4ta55h4ta.png…]()
+
+
+
 자산 평가 전 상황 
 <img width="1893" height="526" alt="화면 캡처 2026-02-26 193310" src="https://github.com/user-attachments/assets/14cbd039-82c2-4928-8b8d-4ed32da7a89d" />
 
