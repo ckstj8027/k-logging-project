@@ -76,6 +76,36 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" th:classappend="${requestURI != null && requestURI.startsWith('/assets/nodes') ? 'active' : ''}" href="/assets/nodes">
+                            <span data-feather="server"></span>
+                            Nodes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${requestURI != null && requestURI.startsWith('/assets/namespaces') ? 'active' : ''}" href="/assets/namespaces">
+                            <span data-feather="folder"></span>
+                            Namespaces
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${requestURI != null && requestURI.startsWith('/assets/deployments') ? 'active' : ''}" href="/assets/deployments">
+                            <span data-feather="grid"></span>
+                            Deployments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${requestURI != null && requestURI.startsWith('/assets/events') ? 'active' : ''}" href="/assets/events">
+                            <span data-feather="activity"></span>
+                            Events
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${requestURI != null && requestURI.startsWith('/policies') ? 'active' : ''}" href="/policies">
+                            <span data-feather="shield"></span>
+                            Policies
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" th:classappend="${requestURI != null && requestURI.startsWith('/alerts') ? 'active' : ''}" href="/alerts">
                             <span data-feather="alert-triangle"></span>
                             Alerts
