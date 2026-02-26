@@ -76,7 +76,9 @@ pod, service, alerts 세부 정보 확인가능
 3개가 생성됨이 보임 
 
 root user 및 priviledged 모드 , 그리고 default ns 에 생성되었다는 위험 알람이 생김 
-<img width="1527" height="743" alt="화면 캡처 2026-02-26 193800" src="https://github.com/user-attachments/assets/d5bacdc8-0ed3-4b65-9d81-ec55421d1a2e" />
+<img width="829" height="398" alt="image" src="https://github.com/user-attachments/assets/ae2368a3-f95f-44e5-bd90-1d4833c5b31c" />
+
+
 
 
 확인후 문제되는 pod 를 삭제 
