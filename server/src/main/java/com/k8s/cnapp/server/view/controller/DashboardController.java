@@ -1,9 +1,7 @@
 package com.k8s.cnapp.server.view.controller;
 
 import com.k8s.cnapp.server.alert.repository.AlertRepository;
-import com.k8s.cnapp.server.profile.repository.PodProfileRepository;
-import com.k8s.cnapp.server.profile.repository.ServiceProfileRepository;
-import com.k8s.cnapp.server.profile.repository.NodeProfileRepository;
+import com.k8s.cnapp.server.profile.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -16,6 +14,9 @@ public class DashboardController {
     private final PodProfileRepository podProfileRepository;
     private final ServiceProfileRepository serviceProfileRepository;
     private final NodeProfileRepository nodeProfileRepository;
+    private final NamespaceProfileRepository namespaceProfileRepository;
+    private final DeploymentProfileRepository deploymentProfileRepository;
+    private final EventProfileRepository eventProfileRepository;
     private final AlertRepository alertRepository;
 
     @GetMapping("/")
@@ -23,6 +24,9 @@ public class DashboardController {
         model.addAttribute("podCount", podProfileRepository.count());
         model.addAttribute("serviceCount", serviceProfileRepository.count());
         model.addAttribute("nodeCount", nodeProfileRepository.count());
+        model.addAttribute("namespaceCount", namespaceProfileRepository.count());
+        model.addAttribute("deploymentCount", deploymentProfileRepository.count());
+        model.addAttribute("eventCount", eventProfileRepository.count());
         model.addAttribute("alertCount", alertRepository.count());
         return "dashboard/index";
     }

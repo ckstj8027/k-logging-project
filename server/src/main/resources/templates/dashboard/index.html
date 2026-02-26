@@ -12,6 +12,7 @@
     </div>
 
     <div class="row">
+        <!-- 1st Row -->
         <div class="col-md-3">
             <div class="card text-white bg-primary mb-3">
                 <div class="card-header">Pods</div>
@@ -33,6 +34,34 @@
                 <div class="card-header">Nodes</div>
                 <div class="card-body">
                     <h5 class="card-title" th:text="${nodeCount}">0</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-secondary mb-3">
+                <div class="card-header">Namespaces</div>
+                <div class="card-body">
+                    <h5 class="card-title" th:text="${namespaceCount}">0</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 2nd Row -->
+        <div class="col-md-3">
+            <div class="card text-white bg-dark mb-3">
+                <div class="card-header">Deployments</div>
+                <div class="card-body">
+                    <h5 class="card-title" th:text="${deploymentCount}">0</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning mb-3">
+                <div class="card-header">Events</div>
+                <div class="card-body">
+                    <h5 class="card-title" th:text="${eventCount}">0</h5>
                 </div>
             </div>
         </div>
