@@ -14,7 +14,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
+        jdbc:
+          batch_size: 50           # 2. 한 번에 50개씩 묶어서 실행
+          order_inserts: true        # 3. Insert 순서 최적화 (Batch 확률 높임)
+          order_updates: true        # 4. Update 순서 최적화
 server:
   port: 8080
 

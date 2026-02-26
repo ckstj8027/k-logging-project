@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -28,21 +30,12 @@ public class LogProcessingService {
     private final EventProfileRepository eventProfileRepository;
     private final DeploymentProfileRepository deploymentProfileRepository;
 
-    /**
-     * 에이전트로부터 수신한 원본 로그(JSON)를 처리하는 메인 메서드
-     * 1. JSON 파싱 (ClusterSnapshot DTO 변환)
-     * 2. 각 리소스별(Pod, Service, Node 등) 처리 로직 호출
-     */
     @Transactional
     public void processRawData(String rawData) {
         try {
-            // 1. JSON 역직렬화
             ClusterSnapshot snapshot = objectMapper.readValue(rawData, ClusterSnapshot.class);
-            
-            // 2. 로그 요약 출력
             logSummary(snapshot);
 
-            // 3. 각 리소스별 처리 (Upsert 로직 포함)
             processPods(snapshot.pods());
             processServices(snapshot.services());
             processNodes(snapshot.nodes());
@@ -55,9 +48,6 @@ public class LogProcessingService {
         }
     }
 
-    /**
-     * 수신된 스냅샷의 요약 정보를 로그로 출력
-     */
     private void logSummary(ClusterSnapshot snapshot) {
         log.info("[Ingest] Received Snapshot (Pods: {}, Services: {}, Nodes: {}, Namespaces: {}, Events: {}, Deployments: {})",
                 snapshot.pods() != null ? snapshot.pods().size() : 0,
@@ -69,29 +59,30 @@ public class LogProcessingService {
         );
     }
 
-    /**
-     * Pod 정보를 처리하여 PodProfile 엔티티로 저장 또는 업데이트
-     * - 중복 방지: Namespace + PodName + ContainerName 조합으로 기존 데이터 확인
-     * - 변경 감지: 이미지나 Deployment 정보가 변경된 경우에만 업데이트
-     */
     private void processPods(List<V1Pod> pods) {
-        if (pods == null) return;
-        int newCount = 0, updatedCount = 0;
+        if (pods == null || pods.isEmpty()) return;
+
+        // 1. Bulk Fetch
+        List<PodProfile> existingProfiles = podProfileRepository.findAll();
+        Map<String, PodProfile> profileMap = existingProfiles.stream()
+                .collect(Collectors.toMap(p -> p.getAssetContext().getAssetKey() + "/" + p.getAssetContext().getContainerName(), Function.identity()));
+
+        List<PodProfile> toSave = new ArrayList<>();
+
         for (V1Pod pod : pods) {
             if (pod.getMetadata() == null || pod.getSpec() == null) continue;
             String namespace = pod.getMetadata().getNamespace();
             String podName = pod.getMetadata().getName();
             
-            // 컨테이너가 없는 경우 스킵
             if (pod.getSpec().getContainers() == null || pod.getSpec().getContainers().isEmpty()) continue;
 
-            // 첫 번째 컨테이너 정보만 처리 (추후 멀티 컨테이너 지원 필요)
             V1Container container = pod.getSpec().getContainers().get(0);
             String containerName = container.getName();
             String image = container.getImage();
             String deploymentName = extractDeploymentName(pod);
+            String key = String.format("%s/%s/%s", namespace, deploymentName != null ? deploymentName : podName, containerName);
 
-            // Security Context 추출
+            // Security Context
             Boolean privileged = null;
             Long runAsUser = null;
             Boolean allowPrivilegeEscalation = null;
@@ -104,24 +95,27 @@ public class LogProcessingService {
                 allowPrivilegeEscalation = securityContext.getAllowPrivilegeEscalation();
                 readOnlyRootFilesystem = securityContext.getReadOnlyRootFilesystem();
             }
-
-            // Pod 레벨 Security Context (runAsUser fallback)
             if (runAsUser == null && pod.getSpec().getSecurityContext() != null) {
                 runAsUser = pod.getSpec().getSecurityContext().getRunAsUser();
             }
 
-            // DB 조회 (Upsert 로직)
-            Optional<PodProfile> existing = podProfileRepository.findByAssetContext_NamespaceAndAssetContext_PodNameAndAssetContext_ContainerName(namespace, podName, containerName);
-            if (existing.isPresent()) {
-                PodProfile p = existing.get();
-                // 변경 사항이 있을 때만 업데이트 (Dirty Checking)
-                if (!Objects.equals(p.getAssetContext().getImage(), image) || !Objects.equals(p.getAssetContext().getDeploymentName(), deploymentName)) {
-                    p.updateAssetContext(new AssetContext(namespace, podName, containerName, image, deploymentName));
-                    updatedCount++;
+            PodProfile existing = profileMap.get(key);
+            if (existing != null) {
+                // Update
+                boolean changed = false;
+                if (!Objects.equals(existing.getAssetContext().getImage(), image) || 
+                    !Objects.equals(existing.getAssetContext().getDeploymentName(), deploymentName)) {
+                    existing.updateAssetContext(new AssetContext(namespace, podName, containerName, image, deploymentName));
+                    changed = true;
                 }
+                // Security Context Update (필요 시 메서드 추가하여 비교 로직 구현)
+                // 여기서는 간단히 항상 업데이트 호출 (내부적으로 값 비교 가능)
+                existing.updateSecurityContext(privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem);
+                
+                if (changed) toSave.add(existing); // 변경된 것만 저장 목록에 추가 (JPA라 사실 필요 없지만 명시적으로)
             } else {
-                // 신규 생성
-                podProfileRepository.save(new PodProfile(
+                // Insert
+                toSave.add(new PodProfile(
                         new AssetContext(namespace, podName, containerName, image, deploymentName),
                         Collections.emptyMap(),
                         privileged,
@@ -129,49 +123,52 @@ public class LogProcessingService {
                         allowPrivilegeEscalation,
                         readOnlyRootFilesystem
                 ));
-                newCount++;
             }
         }
-        log.info("Processed Pods: New={}, Updated={}", newCount, updatedCount);
+        
+        if (!toSave.isEmpty()) {
+            podProfileRepository.saveAll(toSave);
+        }
+        log.info("Processed Pods: Total={}, Saved/Updated={}", pods.size(), toSave.size());
     }
 
-    /**
-     * Service 정보를 처리하여 ServiceProfile 엔티티로 저장 또는 업데이트
-     * - ServicePortProfile 엔티티를 사용하여 포트 정보를 정규화된 형태로 저장
-     */
     private void processServices(List<V1Service> services) {
-        if (services == null) return;
-        int newCount = 0, updatedCount = 0;
+        if (services == null || services.isEmpty()) return;
+
+        List<ServiceProfile> existingProfiles = serviceProfileRepository.findAllWithPorts();
+        Map<String, ServiceProfile> profileMap = existingProfiles.stream()
+                .collect(Collectors.toMap(s -> s.getNamespace() + "/" + s.getName(), Function.identity()));
+
+        List<ServiceProfile> toSave = new ArrayList<>();
+
         for (V1Service service : services) {
             if (service.getMetadata() == null || service.getSpec() == null) continue;
             String namespace = service.getMetadata().getNamespace();
             String name = service.getMetadata().getName();
+            String key = namespace + "/" + name;
+
             String type = service.getSpec().getType();
             String clusterIp = service.getSpec().getClusterIP();
             String externalIps = service.getSpec().getExternalIPs() != null ? String.join(",", service.getSpec().getExternalIPs()) : null;
-            
-            Optional<ServiceProfile> existing = serviceProfileRepository.findByNamespaceAndName(namespace, name);
-            if (existing.isPresent()) {
-                ServiceProfile sp = existing.get();
-                // 변경 감지: 타입, ClusterIP, ExternalIPs 정보가 변경된 경우에만 업데이트
-                boolean isChanged = !Objects.equals(sp.getType(), type) ||
-                                    !Objects.equals(sp.getClusterIp(), clusterIp) ||
-                                    !Objects.equals(sp.getExternalIps(), externalIps);
+
+            ServiceProfile existing = profileMap.get(key);
+            if (existing != null) {
+                boolean isChanged = !Objects.equals(existing.getType(), type) ||
+                                    !Objects.equals(existing.getClusterIp(), clusterIp) ||
+                                    !Objects.equals(existing.getExternalIps(), externalIps);
                 
-                // 포트 정보는 복잡하므로, 일단 기존 포트를 모두 지우고 새로 추가하는 방식으로 갱신 (단순화)
-                // 실제 운영 환경에서는 포트 리스트를 비교하여 변경된 것만 처리하는 것이 좋음
-                sp.clearPorts();
+                // 포트 비교 로직은 복잡하므로 일단 생략하고 무조건 갱신 (최적화 필요 시 추가)
+                existing.clearPorts();
                 if (service.getSpec().getPorts() != null) {
                     for (V1ServicePort port : service.getSpec().getPorts()) {
                         String targetPort = port.getTargetPort() != null ? port.getTargetPort().toString() : null;
-                        sp.addPort(new ServicePortProfile(port.getName(), port.getProtocol(), port.getPort(), targetPort, port.getNodePort()));
-                        isChanged = true; // 포트가 갱신되었으므로 변경된 것으로 간주
+                        existing.addPort(new ServicePortProfile(port.getName(), port.getProtocol(), port.getPort(), targetPort, port.getNodePort()));
                     }
                 }
-
+                
                 if (isChanged) {
-                    sp.update(type, clusterIp, externalIps);
-                    updatedCount++;
+                    existing.update(type, clusterIp, externalIps);
+                    toSave.add(existing);
                 }
             } else {
                 ServiceProfile newSp = new ServiceProfile(namespace, name, type, clusterIp, externalIps);
@@ -181,19 +178,25 @@ public class LogProcessingService {
                         newSp.addPort(new ServicePortProfile(port.getName(), port.getProtocol(), port.getPort(), targetPort, port.getNodePort()));
                     }
                 }
-                serviceProfileRepository.save(newSp);
-                newCount++;
+                toSave.add(newSp);
             }
         }
-        log.info("Processed Services: New={}, Updated={}", newCount, updatedCount);
+        
+        if (!toSave.isEmpty()) {
+            serviceProfileRepository.saveAll(toSave);
+        }
+        log.info("Processed Services: Total={}, Saved/Updated={}", services.size(), toSave.size());
     }
 
-    /**
-     * Node 정보를 처리하여 NodeProfile 엔티티로 저장 또는 업데이트
-     */
     private void processNodes(List<V1Node> nodes) {
-        if (nodes == null) return;
-        int newCount = 0, updatedCount = 0;
+        if (nodes == null || nodes.isEmpty()) return;
+
+        List<NodeProfile> existingProfiles = nodeProfileRepository.findAll();
+        Map<String, NodeProfile> profileMap = existingProfiles.stream()
+                .collect(Collectors.toMap(NodeProfile::getName, Function.identity()));
+
+        List<NodeProfile> toSave = new ArrayList<>();
+
         for (V1Node node : nodes) {
             if (node.getMetadata() == null || node.getStatus() == null) continue;
             String name = node.getMetadata().getName();
@@ -203,69 +206,77 @@ public class LogProcessingService {
             String containerRuntimeVersion = nodeInfo.getContainerRuntimeVersion();
             String kubeletVersion = nodeInfo.getKubeletVersion();
             
-            // Capacity 정보가 없을 수 있음 (예외 처리)
             String cpu = node.getStatus().getCapacity() != null && node.getStatus().getCapacity().get("cpu") != null 
                     ? node.getStatus().getCapacity().get("cpu").toSuffixedString() : "unknown";
             String memory = node.getStatus().getCapacity() != null && node.getStatus().getCapacity().get("memory") != null 
                     ? node.getStatus().getCapacity().get("memory").toSuffixedString() : "unknown";
 
-            Optional<NodeProfile> existing = nodeProfileRepository.findByName(name);
-            if (existing.isPresent()) {
-                NodeProfile np = existing.get();
-                // 변경 감지: OS 이미지, 커널 버전, 런타임 버전 등이 변경된 경우에만 업데이트
-                boolean isChanged = !Objects.equals(np.getOsImage(), osImage) ||
-                                    !Objects.equals(np.getKernelVersion(), kernelVersion) ||
-                                    !Objects.equals(np.getContainerRuntimeVersion(), containerRuntimeVersion) ||
-                                    !Objects.equals(np.getKubeletVersion(), kubeletVersion) ||
-                                    !Objects.equals(np.getCpuCapacity(), cpu) ||
-                                    !Objects.equals(np.getMemoryCapacity(), memory);
+            NodeProfile existing = profileMap.get(name);
+            if (existing != null) {
+                boolean isChanged = !Objects.equals(existing.getOsImage(), osImage) ||
+                                    !Objects.equals(existing.getKernelVersion(), kernelVersion) ||
+                                    !Objects.equals(existing.getContainerRuntimeVersion(), containerRuntimeVersion) ||
+                                    !Objects.equals(existing.getKubeletVersion(), kubeletVersion) ||
+                                    !Objects.equals(existing.getCpuCapacity(), cpu) ||
+                                    !Objects.equals(existing.getMemoryCapacity(), memory);
 
                 if (isChanged) {
-                    np.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
-                    updatedCount++;
+                    existing.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
+                    toSave.add(existing);
                 }
             } else {
-                nodeProfileRepository.save(new NodeProfile(name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory));
-                newCount++;
+                toSave.add(new NodeProfile(name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory));
             }
         }
-        log.info("Processed Nodes: New={}, Updated={}", newCount, updatedCount);
+        
+        if (!toSave.isEmpty()) {
+            nodeProfileRepository.saveAll(toSave);
+        }
+        log.info("Processed Nodes: Total={}, Saved/Updated={}", nodes.size(), toSave.size());
     }
 
-    /**
-     * Namespace 정보를 처리하여 NamespaceProfile 엔티티로 저장 또는 업데이트
-     */
     private void processNamespaces(List<V1Namespace> namespaces) {
-        if (namespaces == null) return;
-        int newCount = 0, updatedCount = 0;
+        if (namespaces == null || namespaces.isEmpty()) return;
+
+        List<NamespaceProfile> existingProfiles = namespaceProfileRepository.findAll();
+        Map<String, NamespaceProfile> profileMap = existingProfiles.stream()
+                .collect(Collectors.toMap(NamespaceProfile::getName, Function.identity()));
+
+        List<NamespaceProfile> toSave = new ArrayList<>();
+
         for (V1Namespace ns : namespaces) {
             if (ns.getMetadata() == null || ns.getStatus() == null) continue;
             String name = ns.getMetadata().getName();
             String status = ns.getStatus().getPhase();
 
-            Optional<NamespaceProfile> existing = namespaceProfileRepository.findByName(name);
-            if (existing.isPresent()) {
-                NamespaceProfile nsp = existing.get();
-                // 변경 감지: 상태(Status)가 변경된 경우에만 업데이트
-                if (!Objects.equals(nsp.getStatus(), status)) {
-                    nsp.update(status);
-                    updatedCount++;
+            NamespaceProfile existing = profileMap.get(name);
+            if (existing != null) {
+                if (!Objects.equals(existing.getStatus(), status)) {
+                    existing.update(status);
+                    toSave.add(existing);
                 }
             } else {
-                namespaceProfileRepository.save(new NamespaceProfile(name, status));
-                newCount++;
+                toSave.add(new NamespaceProfile(name, status));
             }
         }
-        log.info("Processed Namespaces: New={}, Updated={}", newCount, updatedCount);
+        
+        if (!toSave.isEmpty()) {
+            namespaceProfileRepository.saveAll(toSave);
+        }
+        log.info("Processed Namespaces: Total={}, Saved/Updated={}", namespaces.size(), toSave.size());
     }
 
-    /**
-     * Event 정보를 처리하여 EventProfile 엔티티로 저장 또는 업데이트
-     * - UID를 기준으로 중복 여부 확인
-     */
     private void processEvents(List<CoreV1Event> events) {
-        if (events == null) return;
-        int newCount = 0, updatedCount = 0;
+        if (events == null || events.isEmpty()) return;
+
+        // 이벤트는 양이 많을 수 있으므로 UID 목록으로 조회하는 것이 나을 수 있으나,
+        // 여기서는 일관성을 위해 전체 로드 방식을 유지하되, 실제 운영 시에는 최적화 필요 (예: 최근 1시간 데이터만 로드)
+        List<EventProfile> existingProfiles = eventProfileRepository.findAll();
+        Map<String, EventProfile> profileMap = existingProfiles.stream()
+                .collect(Collectors.toMap(EventProfile::getUid, Function.identity()));
+
+        List<EventProfile> toSave = new ArrayList<>();
+
         for (CoreV1Event event : events) {
             if (event.getMetadata() == null || event.getInvolvedObject() == null) continue;
             String uid = event.getMetadata().getUid();
@@ -273,16 +284,14 @@ public class LogProcessingService {
             OffsetDateTime lastTimestamp = event.getLastTimestamp();
             String message = event.getMessage();
 
-            Optional<EventProfile> existing = eventProfileRepository.findByUid(uid);
-            if (existing.isPresent()) {
-                EventProfile ep = existing.get();
-                // 변경 감지: Count가 증가했거나 메시지가 변경된 경우에만 업데이트
-                if (!Objects.equals(ep.getCount(), count)) {
-                    ep.update(count, lastTimestamp, message);
-                    updatedCount++;
+            EventProfile existing = profileMap.get(uid);
+            if (existing != null) {
+                if (!Objects.equals(existing.getCount(), count)) {
+                    existing.update(count, lastTimestamp, message);
+                    toSave.add(existing);
                 }
             } else {
-                eventProfileRepository.save(new EventProfile(
+                toSave.add(new EventProfile(
                         event.getMetadata().getNamespace(),
                         event.getInvolvedObject().getKind(),
                         event.getInvolvedObject().getName(),
@@ -293,53 +302,57 @@ public class LogProcessingService {
                         count,
                         uid
                 ));
-                newCount++;
             }
         }
-        log.info("Processed Events: New={}, Updated={}", newCount, updatedCount);
+        
+        if (!toSave.isEmpty()) {
+            eventProfileRepository.saveAll(toSave);
+        }
+        log.info("Processed Events: Total={}, Saved/Updated={}", events.size(), toSave.size());
     }
     
-    /**
-     * Deployment 정보를 처리하여 DeploymentProfile 엔티티로 저장 또는 업데이트
-     */
     private void processDeployments(List<V1Deployment> deployments) {
-        if (deployments == null) return;
-        int newCount = 0, updatedCount = 0;
+        if (deployments == null || deployments.isEmpty()) return;
+
+        List<DeploymentProfile> existingProfiles = deploymentProfileRepository.findAll();
+        Map<String, DeploymentProfile> profileMap = existingProfiles.stream()
+                .collect(Collectors.toMap(d -> d.getNamespace() + "/" + d.getName(), Function.identity()));
+
+        List<DeploymentProfile> toSave = new ArrayList<>();
+
         for (V1Deployment dep : deployments) {
             if (dep.getMetadata() == null || dep.getSpec() == null) continue;
             String namespace = dep.getMetadata().getNamespace();
             String name = dep.getMetadata().getName();
+            String key = namespace + "/" + name;
+
             Integer replicas = dep.getSpec().getReplicas();
             Integer availableReplicas = dep.getStatus() != null ? dep.getStatus().getAvailableReplicas() : 0;
             String strategy = dep.getSpec().getStrategy() != null ? dep.getSpec().getStrategy().getType() : null;
             String selectorJson = toJson(dep.getSpec().getSelector());
 
-            Optional<DeploymentProfile> existing = deploymentProfileRepository.findByNamespaceAndName(namespace, name);
-            if (existing.isPresent()) {
-                DeploymentProfile dp = existing.get();
-                // 변경 감지: Replicas, Strategy, Selector 등이 변경된 경우에만 업데이트
-                boolean isChanged = !Objects.equals(dp.getReplicas(), replicas) ||
-                                    !Objects.equals(dp.getAvailableReplicas(), availableReplicas) ||
-                                    !Objects.equals(dp.getStrategyType(), strategy) ||
-                                    !Objects.equals(dp.getSelectorJson(), selectorJson);
+            DeploymentProfile existing = profileMap.get(key);
+            if (existing != null) {
+                boolean isChanged = !Objects.equals(existing.getReplicas(), replicas) ||
+                                    !Objects.equals(existing.getAvailableReplicas(), availableReplicas) ||
+                                    !Objects.equals(existing.getStrategyType(), strategy) ||
+                                    !Objects.equals(existing.getSelectorJson(), selectorJson);
 
                 if (isChanged) {
-                    dp.update(replicas, availableReplicas, strategy, selectorJson);
-                    updatedCount++;
+                    existing.update(replicas, availableReplicas, strategy, selectorJson);
+                    toSave.add(existing);
                 }
             } else {
-                deploymentProfileRepository.save(new DeploymentProfile(namespace, name, replicas, availableReplicas, strategy, selectorJson));
-                newCount++;
+                toSave.add(new DeploymentProfile(namespace, name, replicas, availableReplicas, strategy, selectorJson));
             }
         }
-        log.info("Processed Deployments: New={}, Updated={}", newCount, updatedCount);
+        
+        if (!toSave.isEmpty()) {
+            deploymentProfileRepository.saveAll(toSave);
+        }
+        log.info("Processed Deployments: Total={}, Saved/Updated={}", deployments.size(), toSave.size());
     }
 
-    /**
-     * Pod의 OwnerReferences를 분석하여 Deployment 이름을 추출
-     * - ReplicaSet인 경우: 이름 규칙(deployName-hash)을 통해 유추
-     * - Deployment, DaemonSet, StatefulSet인 경우: 이름 그대로 사용
-     */
     private String extractDeploymentName(V1Pod pod) {
         if (pod.getMetadata().getOwnerReferences() == null) return null;
         for (V1OwnerReference owner : pod.getMetadata().getOwnerReferences()) {
@@ -354,10 +367,6 @@ public class LogProcessingService {
         return null;
     }
 
-    /**
-     * 객체를 JSON 문자열로 변환 (DB 저장용)
-     * - IntOrString 타입 처리를 위한 커스텀 모듈 등록 필요
-     */
     private String toJson(Object obj) {
         try {
             return objectMapper.writeValueAsString(obj);
