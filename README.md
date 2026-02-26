@@ -3,14 +3,20 @@ K8S-CNAPP Log Project
 쿠버네티스 클러스터의 실시간 상태를 수집하고, 리소스의 라이프사이클(생성·수정·삭제)을 추적하여 보안 가시성을 제공하는 백엔드 엔진입니다.
 
 Cluster Snapshot Sync: 에이전트로부터 전달받은 리소스 스냅샷을 기반으로 DB 상태 최적화 동기화.
+
 Resource Lifecycle Tracking: 리소스 삭제 시 NOT IN 쿼리를 활용한 효율적인 데이터 정리 및 정합성 유지.
+
 Memory Efficiency: 수만 개의 리소스를 처리할 때 메모리 부하를 방지하기 위한 식별자(Key) 기반 벌크 업데이트.
+
 Security Context Auditing: Pod 및 컨네이너의 보안 설정(Privileged, User ID 등) 자동 추출 및 모니터링.
 
 
 opt
+----------------------------------------------------------------------------------------------------------------------------------
 Dirty Checking과 Batch Insert를 결합하여 DB I/O를 최소화
+
 Update: 불필요한 Update 쿼리를 방지하기 위해 JPA의 Dirty Checking에 의존하여 변경된 자산만 선택적으로 반영
+
 Insert: 네트워크 오버헤드를 줄이기 위해 신규 자산은 건별 저장이 아닌 saveAll()을 통한 벌크 연산으로 처리
 
 
