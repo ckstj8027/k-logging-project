@@ -2,7 +2,10 @@ spring:
   application:
     name: cnapp-server
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/cnappdb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+
+
+
+    url: ${DB_URL:jdbc:mysql://localhost:3306/cnappdb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:password}
     driver-class-name: com.mysql.cj.jdbc.Driver
