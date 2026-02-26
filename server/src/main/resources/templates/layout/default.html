@@ -58,25 +58,25 @@
             <div class="position-sticky pt-3">
                 <ul class="nav flex-column">
                     <li class="nav-item">
-                        <a class="nav-link" th:classappend="${#ctx.httpServletRequest.requestURI == '/' ? 'active' : ''}" href="/">
+                        <a class="nav-link" th:classappend="${requestURI == '/' ? 'active' : ''}" href="/">
                             <span data-feather="home"></span>
                             Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" th:classappend="${#ctx.httpServletRequest.requestURI.startsWith('/assets/pods') ? 'active' : ''}" href="/assets/pods">
+                        <a class="nav-link" th:classappend="${requestURI != null && requestURI.startsWith('/assets/pods') ? 'active' : ''}" href="/assets/pods">
                             <span data-feather="box"></span>
                             Pods
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" th:classappend="${#ctx.httpServletRequest.requestURI.startsWith('/assets/services') ? 'active' : ''}" href="/assets/services">
+                        <a class="nav-link" th:classappend="${requestURI != null && requestURI.startsWith('/assets/services') ? 'active' : ''}" href="/assets/services">
                             <span data-feather="layers"></span>
                             Services
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" th:classappend="${#ctx.httpServletRequest.requestURI.startsWith('/alerts') ? 'active' : ''}" href="/alerts">
+                        <a class="nav-link" th:classappend="${requestURI != null && requestURI.startsWith('/alerts') ? 'active' : ''}" href="/alerts">
                             <span data-feather="alert-triangle"></span>
                             Alerts
                         </a>
