@@ -85,8 +85,11 @@ root user 및 priviledged 모드 , 그리고 default ns 에 생성되었다는 �
 
 
 기존에는 ON DELETE CASCADE 옵션을 주어 Pod이 삭제될 때 해당 Pod에 걸려있던 모든 Alert도 흔적 없이 사라지게 했었는데 
+
 "방금 전까지 해킹 위협 알람이 떠 있었는데, Pod이 삭제되자마자 증거가 사라지는" 꼴이 되어
+
 보안 솔루션에서는 이게 꽤 치명적일 수 있다고 판단하여 기록은 게속 남기는 방향으로 진행 
+
 보안 위협 의삼되는 pod를 삭제함으로서 31->30 은 즉시 반영 
 <img width="1891" height="416" alt="화면 캡처 2026-02-26 194045" src="https://github.com/user-attachments/assets/b49613bc-cd34-4f69-a296-b3f124d40d5b" />
 
