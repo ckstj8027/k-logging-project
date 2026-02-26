@@ -21,11 +21,14 @@ pod, service, alerts 세부 정보 확인가능
 
 
 위험한 pod 배포 
-<img width="1000" height="345" alt="화면 캡처 2026-02-26 193600" src="https://github.com/user-attachments/assets/6bf2d307-dee3-4c07-914f-4a4676f47d0e" />
+<img width="800" height="345" alt="화면 캡처 2026-02-26 193600" src="https://github.com/user-attachments/assets/6bf2d307-dee3-4c07-914f-4a4676f47d0e" />
 
+리소스도 정상 반영 됨
 <img width="1557" height="345" alt="화면 캡처 2026-02-26 193702" src="https://github.com/user-attachments/assets/75dda21a-f1b8-4960-9263-f45e3487ad49" />
 
-조금 기다리면 경고 생성 
+
+ 
+ alerts 스케줄러가 주기적으로 db를 스캔해 사전에 정의한 위험 체크리스트에 해당하는걸 발견하면 alert 생성 
 <img width="1387" height="67" alt="화면 캡처 2026-02-26 193721" src="https://github.com/user-attachments/assets/3f60c6f1-6ef5-47b7-ad23-1ad11f1e2091" />
 
 <img width="1898" height="493" alt="화면 캡처 2026-02-26 193740" src="https://github.com/user-attachments/assets/0ab6f5d2-cfb4-40a0-9109-e4d98ed9cc24" />
