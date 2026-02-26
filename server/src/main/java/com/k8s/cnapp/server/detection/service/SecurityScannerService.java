@@ -2,6 +2,8 @@ package com.k8s.cnapp.server.detection.service;
 
 import com.k8s.cnapp.server.alert.domain.Alert;
 import com.k8s.cnapp.server.alert.repository.AlertRepository;
+import com.k8s.cnapp.server.policy.domain.Policy;
+import com.k8s.cnapp.server.policy.service.PolicyService;
 import com.k8s.cnapp.server.profile.domain.*;
 import com.k8s.cnapp.server.profile.repository.DeploymentProfileRepository;
 import com.k8s.cnapp.server.profile.repository.NodeProfileRepository;
@@ -13,10 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -30,16 +29,7 @@ public class SecurityScannerService {
     private final DeploymentProfileRepository deploymentProfileRepository;
     private final NodeProfileRepository nodeProfileRepository;
     private final AlertRepository alertRepository;
-
-    // 위험 포트 목록 (SSH, Telnet, SMTP, DNS, POP3, IMAP, LDAP, SMB, RDP, DB 등)
-    private static final Set<Integer> DANGEROUS_PORTS = Set.of(
-            21, 22, 23, 25, 53, 110, 143, 389, 445, 3306, 3389, 5432, 6379, 27017
-    );
-
-    // 노드 리소스 임계값 (예시: CPU 1코어, Memory 1GB)
-    // 실제 운영 환경에서는 설정 파일로 관리하거나 동적으로 조정 필요
-    private static final int CPU_LIMIT_CORES = 1;
-    private static final long MEMORY_LIMIT_BYTES = 1L * 1024 * 1024 * 1024; // 32GB
+    private final PolicyService policyService;
 
     // 1분마다 스캔 실행
     @Scheduled(fixedRate = 60000)
@@ -53,7 +43,7 @@ public class SecurityScannerService {
                     .collect(Collectors.toMap(
                             a -> a.getResourceType() + "/" + a.getResourceName() + "/" + a.getMessage(),
                             Function.identity(),
-                            (existing, replacement) -> existing // 중복 시 기존 것 유지
+                            (existing, replacement) -> existing
                     ));
 
             List<Alert> newAlerts = new ArrayList<>();
@@ -81,15 +71,21 @@ public class SecurityScannerService {
     private void scanPods(Map<String, Alert> alertMap, List<Alert> newAlerts) {
         List<PodProfile> pods = podProfileRepository.findAll();
         log.info("Scanning {} pods...", pods.size());
+        
+        // 정책 로드
+        boolean denyPrivileged = "true".equals(policyService.getPolicyValue(Policy.ResourceType.POD, Policy.RuleType.PRIVILEGED_DENY));
+        boolean denyRunAsRoot = "true".equals(policyService.getPolicyValue(Policy.ResourceType.POD, Policy.RuleType.RUN_AS_ROOT_DENY));
+        boolean denyLatestTag = "true".equals(policyService.getPolicyValue(Policy.ResourceType.POD, Policy.RuleType.IMAGE_LATEST_TAG_DENY));
+
         for (PodProfile pod : pods) {
             String resourceName = pod.getAssetContext().getAssetKey();
 
-            if (Boolean.TRUE.equals(pod.getPrivileged())) {
+            if (denyPrivileged && Boolean.TRUE.equals(pod.getPrivileged())) {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.CRITICAL, Alert.Category.CSPM,
                         "Privileged container detected", "Pod", resourceName);
             }
 
-            if (Boolean.TRUE.equals(pod.getRunAsRoot())) {
+            if (denyRunAsRoot && Boolean.TRUE.equals(pod.getRunAsRoot())) {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.HIGH, Alert.Category.CSPM,
                         "Container running as root", "Pod", resourceName);
             }
@@ -99,7 +95,7 @@ public class SecurityScannerService {
                         "Pod running in default namespace", "Pod", resourceName);
             }
             
-            if (pod.getAssetContext().getImage() != null && pod.getAssetContext().getImage().endsWith(":latest")) {
+            if (denyLatestTag && pod.getAssetContext().getImage() != null && pod.getAssetContext().getImage().endsWith(":latest")) {
                  addAlertIfNew(alertMap, newAlerts, Alert.Severity.MEDIUM, Alert.Category.CSPM,
                         "Image using 'latest' tag", "Pod", resourceName);
             }
@@ -109,15 +105,28 @@ public class SecurityScannerService {
     private void scanServices(Map<String, Alert> alertMap, List<Alert> newAlerts) {
         List<ServiceProfile> services = serviceProfileRepository.findAllWithPorts();
         log.info("Scanning {} services...", services.size());
+        
+        // 정책 로드
+        String portBlacklistStr = policyService.getPolicyValue(Policy.ResourceType.SERVICE, Policy.RuleType.PORT_BLACKLIST);
+        Set<Integer> dangerousPorts = new HashSet<>();
+        if (portBlacklistStr != null && !portBlacklistStr.isEmpty()) {
+            for (String p : portBlacklistStr.split(",")) {
+                try {
+                    dangerousPorts.add(Integer.parseInt(p.trim()));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        boolean denyExternalIp = "true".equals(policyService.getPolicyValue(Policy.ResourceType.SERVICE, Policy.RuleType.EXTERNAL_IP_DENY));
+
         for (ServiceProfile service : services) {
             String resourceName = service.getNamespace() + "/" + service.getName();
 
-            if ("LoadBalancer".equals(service.getType()) || "NodePort".equals(service.getType())) {
+            if (denyExternalIp && ("LoadBalancer".equals(service.getType()) || "NodePort".equals(service.getType()))) {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.MEDIUM, Alert.Category.CSPM,
                         "Service exposed externally (" + service.getType() + ")", "Service", resourceName);
                 
                 for (ServicePortProfile port : service.getPorts()) {
-                    if (port.getPort() != null && DANGEROUS_PORTS.contains(port.getPort())) {
+                    if (port.getPort() != null && dangerousPorts.contains(port.getPort())) {
                         addAlertIfNew(alertMap, newAlerts, Alert.Severity.HIGH, Alert.Category.CSPM,
                                 "Dangerous port exposed: " + port.getPort() + " (" + port.getProtocol() + ")", 
                                 "Service", resourceName);
@@ -130,17 +139,26 @@ public class SecurityScannerService {
     private void scanDeployments(Map<String, Alert> alertMap, List<Alert> newAlerts) {
         List<DeploymentProfile> deployments = deploymentProfileRepository.findAll();
         log.info("Scanning {} deployments...", deployments.size());
+        
+        // 정책 로드
+        int maxReplicas = 10;
+        int minReplicas = 1;
+        try {
+            maxReplicas = Integer.parseInt(policyService.getPolicyValue(Policy.ResourceType.DEPLOYMENT, Policy.RuleType.REPLICA_MAX_LIMIT));
+            minReplicas = Integer.parseInt(policyService.getPolicyValue(Policy.ResourceType.DEPLOYMENT, Policy.RuleType.REPLICA_MIN_LIMIT));
+        } catch (NumberFormatException ignored) {}
+
         for (DeploymentProfile deployment : deployments) {
             String resourceName = deployment.getNamespace() + "/" + deployment.getName();
 
-            if (deployment.getReplicas() != null && deployment.getReplicas() >= 3) {
+            if (deployment.getReplicas() != null && deployment.getReplicas() > maxReplicas) {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.LOW, Alert.Category.CSPM,
-                        "High replica count detected (" + deployment.getReplicas() + ")", "Deployment", resourceName);
+                        "High replica count detected (" + deployment.getReplicas() + " > " + maxReplicas + ")", "Deployment", resourceName);
             }
             
-            if (deployment.getReplicas() != null && deployment.getReplicas() == 0) {
+            if (deployment.getReplicas() != null && deployment.getReplicas() < minReplicas) {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.MEDIUM, Alert.Category.CSPM,
-                        "Zero replicas detected (Service might be down)", "Deployment", resourceName);
+                        "Low replica count detected (" + deployment.getReplicas() + " < " + minReplicas + ")", "Deployment", resourceName);
             }
         }
     }
@@ -148,21 +166,30 @@ public class SecurityScannerService {
     private void scanNodes(Map<String, Alert> alertMap, List<Alert> newAlerts) {
         List<NodeProfile> nodes = nodeProfileRepository.findAll();
         log.info("Scanning {} nodes...", nodes.size());
+        
+        // 정책 로드
+        int cpuLimit = 8;
+        long memoryLimit = 32L * 1024 * 1024 * 1024;
+        try {
+            cpuLimit = Integer.parseInt(policyService.getPolicyValue(Policy.ResourceType.NODE, Policy.RuleType.CPU_LIMIT_CORES));
+            memoryLimit = Long.parseLong(policyService.getPolicyValue(Policy.ResourceType.NODE, Policy.RuleType.MEMORY_LIMIT_BYTES));
+        } catch (NumberFormatException ignored) {}
+
         for (NodeProfile node : nodes) {
             String resourceName = node.getName();
 
             // CPU Capacity Check
             long cpuCores = parseCpu(node.getCpuCapacity());
-            if (cpuCores > CPU_LIMIT_CORES) {
+            if (cpuCores > cpuLimit) {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.HIGH, Alert.Category.CSPM,
-                        "Node CPU capacity exceeds limit (" + cpuCores + " > " + CPU_LIMIT_CORES + ")", "Node", resourceName);
+                        "Node CPU capacity exceeds limit (" + cpuCores + " > " + cpuLimit + ")", "Node", resourceName);
             }
 
             // Memory Capacity Check
             long memoryBytes = parseMemory(node.getMemoryCapacity());
-            if (memoryBytes > MEMORY_LIMIT_BYTES) {
+            if (memoryBytes > memoryLimit) {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.HIGH, Alert.Category.CSPM,
-                        "Node Memory capacity exceeds limit (" + (memoryBytes / 1024 / 1024 / 1024) + "GB > " + (MEMORY_LIMIT_BYTES / 1024 / 1024 / 1024) + "GB)", "Node", resourceName);
+                        "Node Memory capacity exceeds limit (" + (memoryBytes / 1024 / 1024 / 1024) + "GB > " + (memoryLimit / 1024 / 1024 / 1024) + "GB)", "Node", resourceName);
             }
         }
     }
