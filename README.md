@@ -18,8 +18,10 @@ pod, service, alerts 세부 정보 확인가능
 <img width="1900" height="806" alt="화면 캡처 2026-02-26 193526" src="https://github.com/user-attachments/assets/7f882197-6aaa-4889-84d0-773abd3be79e" />
 
 
+
+
 위험한 pod 배포 
-<img width="450" height="122" alt="화면 캡처 2026-02-26 193600" src="https://github.com/user-attachments/assets/6bf2d307-dee3-4c07-914f-4a4676f47d0e" />
+<img width="1000" height="345" alt="화면 캡처 2026-02-26 193600" src="https://github.com/user-attachments/assets/6bf2d307-dee3-4c07-914f-4a4676f47d0e" />
 
 <img width="1557" height="345" alt="화면 캡처 2026-02-26 193702" src="https://github.com/user-attachments/assets/75dda21a-f1b8-4960-9263-f45e3487ad49" />
 
