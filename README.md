@@ -21,7 +21,7 @@ pod, service, alerts 세부 정보 확인가능
 
 
 위험한 pod 배포 
-<img width="800" height="345" alt="화면 캡처 2026-02-26 193600" src="https://github.com/user-attachments/assets/6bf2d307-dee3-4c07-914f-4a4676f47d0e" />
+<img width="950" height="345" alt="화면 캡처 2026-02-26 193600" src="https://github.com/user-attachments/assets/6bf2d307-dee3-4c07-914f-4a4676f47d0e" />
 
 리소스도 정상 반영 됨
 <img width="1557" height="345" alt="화면 캡처 2026-02-26 193702" src="https://github.com/user-attachments/assets/75dda21a-f1b8-4960-9263-f45e3487ad49" />
@@ -34,7 +34,7 @@ pod, service, alerts 세부 정보 확인가능
 <img width="1898" height="493" alt="화면 캡처 2026-02-26 193740" src="https://github.com/user-attachments/assets/0ab6f5d2-cfb4-40a0-9109-e4d98ed9cc24" />
 
 
-알람은 사전에 정의한 규칙에 의해 생김 
+3개가 생성됨이 보임 
 
 root user 및 priviledged 모드 , 그리고 default ns 에 생성되었다는 위험 알람이 생김 
 <img width="1527" height="743" alt="화면 캡처 2026-02-26 193800" src="https://github.com/user-attachments/assets/d5bacdc8-0ed3-4b65-9d81-ec55421d1a2e" />
