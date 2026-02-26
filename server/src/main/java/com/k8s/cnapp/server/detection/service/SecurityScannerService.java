@@ -43,7 +43,11 @@ public class SecurityScannerService {
     public void scan() {
         log.info("Starting security scan...");
         try {
-            // 1. 기존 OPEN 상태 Alert 벌크 조회 (메모리 로딩)
+            // 1. 스캔 대상 리소스 식별자 추출 (필요 시)
+            // 현재는 전체 스캔이므로 생략 가능하지만, 최적화를 위해 Alert 조회 시 활용 가능
+
+            // 2. 기존 OPEN 상태 Alert 벌크 조회 (메모리 로딩)
+            // 전체 Alert를 가져오는 대신, 필요한 범위 내에서 가져오거나 전체를 가져와도 됨 (Alert 개수가 리소스 개수보다 적을 것이므로)
             List<Alert> openAlerts = alertRepository.findByStatus(Alert.Status.OPEN);
             Map<String, Alert> alertMap = openAlerts.stream()
                     .collect(Collectors.toMap(
@@ -54,12 +58,12 @@ public class SecurityScannerService {
 
             List<Alert> newAlerts = new ArrayList<>();
 
-            // 2. 각 리소스 스캔 (메모리 맵을 통해 중복 체크)
+            // 3. 각 리소스 스캔 (메모리 맵을 통해 중복 체크)
             scanPods(alertMap, newAlerts);
             scanServices(alertMap, newAlerts);
             scanDeployments(alertMap, newAlerts);
 
-            // 3. 신규 Alert 일괄 저장
+            // 4. 신규 Alert 일괄 저장
             if (!newAlerts.isEmpty()) {
                 alertRepository.saveAll(newAlerts);
                 log.info("Created {} new alerts.", newAlerts.size());
@@ -74,6 +78,8 @@ public class SecurityScannerService {
     }
 
     private void scanPods(Map<String, Alert> alertMap, List<Alert> newAlerts) {
+        // In-Clause Batch Fetching 적용은 LogProcessingService와 달리 전체 스캔이 목적이므로 findAll() 유지
+        // 만약 특정 Pod만 스캔해야 한다면 변경 필요. 현재는 전체 스캔이 맞음.
         List<PodProfile> pods = podProfileRepository.findAll();
         log.info("Scanning {} pods...", pods.size());
         for (PodProfile pod : pods) {
@@ -93,7 +99,7 @@ public class SecurityScannerService {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.LOW, Alert.Category.CSPM,
                         "Pod running in default namespace", "Pod", resourceName);
             }
-            
+
             if (pod.getAssetContext().getImage() != null && pod.getAssetContext().getImage().endsWith(":latest")) {
                  addAlertIfNew(alertMap, newAlerts, Alert.Severity.MEDIUM, Alert.Category.CSPM,
                         "Image using 'latest' tag", "Pod", resourceName);
@@ -110,11 +116,11 @@ public class SecurityScannerService {
             if ("LoadBalancer".equals(service.getType()) || "NodePort".equals(service.getType())) {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.MEDIUM, Alert.Category.CSPM,
                         "Service exposed externally (" + service.getType() + ")", "Service", resourceName);
-                
+
                 for (ServicePortProfile port : service.getPorts()) {
                     if (port.getPort() != null && DANGEROUS_PORTS.contains(port.getPort())) {
                         addAlertIfNew(alertMap, newAlerts, Alert.Severity.HIGH, Alert.Category.CSPM,
-                                "Dangerous port exposed: " + port.getPort() + " (" + port.getProtocol() + ")", 
+                                "Dangerous port exposed: " + port.getPort() + " (" + port.getProtocol() + ")",
                                 "Service", resourceName);
                     }
                 }
@@ -132,7 +138,7 @@ public class SecurityScannerService {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.LOW, Alert.Category.CSPM,
                         "High replica count detected (" + deployment.getReplicas() + ")", "Deployment", resourceName);
             }
-            
+
             if (deployment.getReplicas() != null && deployment.getReplicas() == 0) {
                 addAlertIfNew(alertMap, newAlerts, Alert.Severity.MEDIUM, Alert.Category.CSPM,
                         "Zero replicas detected (Service might be down)", "Deployment", resourceName);
@@ -140,16 +146,15 @@ public class SecurityScannerService {
         }
     }
 
-    private void addAlertIfNew(Map<String, Alert> alertMap, List<Alert> newAlerts, 
-                               Alert.Severity severity, Alert.Category category, 
+    private void addAlertIfNew(Map<String, Alert> alertMap, List<Alert> newAlerts,
+                               Alert.Severity severity, Alert.Category category,
                                String message, String resourceType, String resourceName) {
         String key = resourceType + "/" + resourceName + "/" + message;
-        
-        // 이미 DB에 있거나, 이번 스캔에서 이미 생성된 Alert라면 스킵
+
         if (!alertMap.containsKey(key)) {
             Alert alert = new Alert(severity, category, message, resourceType, resourceName);
             newAlerts.add(alert);
-            alertMap.put(key, alert); // 중복 방지를 위해 맵에도 추가
+            alertMap.put(key, alert);
             log.warn("[ALERT] [{}] {} - {} ({})", severity, category, message, resourceName);
         }
     }

@@ -62,7 +62,20 @@ public class LogProcessingService {
     private void processPods(List<V1Pod> pods) {
         if (pods == null || pods.isEmpty()) return;
 
-        List<PodProfile> existingProfiles = podProfileRepository.findAll();
+        // 1. 식별자 리스트 추출
+        List<String> keys = new ArrayList<>();
+        for (V1Pod pod : pods) {
+            if (pod.getMetadata() == null || pod.getSpec() == null) continue;
+            if (pod.getSpec().getContainers() == null || pod.getSpec().getContainers().isEmpty()) continue;
+            
+            String namespace = pod.getMetadata().getNamespace();
+            String podName = pod.getMetadata().getName();
+            String containerName = pod.getSpec().getContainers().get(0).getName();
+            keys.add(namespace + "/" + podName + "/" + containerName);
+        }
+
+        // 2. 조건부 벌크 조회 (In-Clause)
+        List<PodProfile> existingProfiles = podProfileRepository.findAllByKeys(keys);
         Map<String, PodProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         p -> p.getAssetContext().getAssetKey() + "/" + p.getAssetContext().getContainerName(),
@@ -71,7 +84,7 @@ public class LogProcessingService {
                 ));
 
         List<PodProfile> toSave = new ArrayList<>();
-        Set<String> processedKeys = new HashSet<>(); // 중복 방지용 Set
+        Set<String> processedKeys = new HashSet<>();
 
         for (V1Pod pod : pods) {
             if (pod.getMetadata() == null || pod.getSpec() == null) continue;
@@ -86,7 +99,7 @@ public class LogProcessingService {
             String deploymentName = extractDeploymentName(pod);
             String key = String.format("%s/%s/%s", namespace, deploymentName != null ? deploymentName : podName, containerName);
 
-            if (processedKeys.contains(key)) continue; // 이미 처리된 키는 스킵
+            if (processedKeys.contains(key)) continue;
 
             Boolean privileged = null;
             Long runAsUser = null;
@@ -118,7 +131,7 @@ public class LogProcessingService {
                         readOnlyRootFilesystem
                 ));
             }
-            processedKeys.add(key); // 처리 완료 마킹
+            processedKeys.add(key);
         }
         
         if (!toSave.isEmpty()) {
@@ -130,7 +143,13 @@ public class LogProcessingService {
     private void processServices(List<V1Service> services) {
         if (services == null || services.isEmpty()) return;
 
-        List<ServiceProfile> existingProfiles = serviceProfileRepository.findAllWithPorts();
+        List<String> keys = new ArrayList<>();
+        for (V1Service service : services) {
+            if (service.getMetadata() == null) continue;
+            keys.add(service.getMetadata().getNamespace() + "/" + service.getMetadata().getName());
+        }
+
+        List<ServiceProfile> existingProfiles = serviceProfileRepository.findAllByKeysWithPorts(keys);
         Map<String, ServiceProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         s -> s.getNamespace() + "/" + s.getName(),
@@ -185,7 +204,12 @@ public class LogProcessingService {
     private void processNodes(List<V1Node> nodes) {
         if (nodes == null || nodes.isEmpty()) return;
 
-        List<NodeProfile> existingProfiles = nodeProfileRepository.findAll();
+        List<String> keys = nodes.stream()
+                .filter(n -> n.getMetadata() != null)
+                .map(n -> n.getMetadata().getName())
+                .collect(Collectors.toList());
+
+        List<NodeProfile> existingProfiles = nodeProfileRepository.findByNameIn(keys);
         Map<String, NodeProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         NodeProfile::getName,
@@ -231,7 +255,12 @@ public class LogProcessingService {
     private void processNamespaces(List<V1Namespace> namespaces) {
         if (namespaces == null || namespaces.isEmpty()) return;
 
-        List<NamespaceProfile> existingProfiles = namespaceProfileRepository.findAll();
+        List<String> keys = namespaces.stream()
+                .filter(n -> n.getMetadata() != null)
+                .map(n -> n.getMetadata().getName())
+                .collect(Collectors.toList());
+
+        List<NamespaceProfile> existingProfiles = namespaceProfileRepository.findByNameIn(keys);
         Map<String, NamespaceProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         NamespaceProfile::getName,
@@ -268,7 +297,12 @@ public class LogProcessingService {
     private void processEvents(List<CoreV1Event> events) {
         if (events == null || events.isEmpty()) return;
 
-        List<EventProfile> existingProfiles = eventProfileRepository.findAll();
+        List<String> keys = events.stream()
+                .filter(e -> e.getMetadata() != null)
+                .map(e -> e.getMetadata().getUid())
+                .collect(Collectors.toList());
+
+        List<EventProfile> existingProfiles = eventProfileRepository.findByUidIn(keys);
         Map<String, EventProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         EventProfile::getUid,
@@ -317,7 +351,13 @@ public class LogProcessingService {
     private void processDeployments(List<V1Deployment> deployments) {
         if (deployments == null || deployments.isEmpty()) return;
 
-        List<DeploymentProfile> existingProfiles = deploymentProfileRepository.findAll();
+        List<String> keys = new ArrayList<>();
+        for (V1Deployment dep : deployments) {
+            if (dep.getMetadata() == null) continue;
+            keys.add(dep.getMetadata().getNamespace() + "/" + dep.getMetadata().getName());
+        }
+
+        List<DeploymentProfile> existingProfiles = deploymentProfileRepository.findAllByKeys(keys);
         Map<String, DeploymentProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         d -> d.getNamespace() + "/" + d.getName(),
