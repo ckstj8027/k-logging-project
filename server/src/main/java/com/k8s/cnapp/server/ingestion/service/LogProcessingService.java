@@ -71,10 +71,14 @@ public class LogProcessingService {
             String namespace = pod.getMetadata().getNamespace();
             String podName = pod.getMetadata().getName();
             String containerName = pod.getSpec().getContainers().get(0).getName();
-            keys.add(namespace + "/" + podName + "/" + containerName);
+            String deploymentName = extractDeploymentName(pod);
+            keys.add(namespace + "/" + (deploymentName != null ? deploymentName : podName) + "/" + containerName);
         }
 
-        // 2. 조건부 벌크 조회 (In-Clause)
+        // 2. 미수신 리소스 삭제 (동기화)
+        podProfileRepository.deleteByKeysNotIn(keys);
+
+        // 3. 조건부 벌크 조회 (In-Clause)
         List<PodProfile> existingProfiles = podProfileRepository.findAllByKeys(keys);
         Map<String, PodProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
@@ -149,6 +153,9 @@ public class LogProcessingService {
             keys.add(service.getMetadata().getNamespace() + "/" + service.getMetadata().getName());
         }
 
+        // 미수신 리소스 삭제
+        serviceProfileRepository.deleteByKeysNotIn(keys);
+
         List<ServiceProfile> existingProfiles = serviceProfileRepository.findAllByKeysWithPorts(keys);
         Map<String, ServiceProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
@@ -209,6 +216,9 @@ public class LogProcessingService {
                 .map(n -> n.getMetadata().getName())
                 .collect(Collectors.toList());
 
+        // 미수신 리소스 삭제
+        nodeProfileRepository.deleteByNameNotIn(keys);
+
         List<NodeProfile> existingProfiles = nodeProfileRepository.findByNameIn(keys);
         Map<String, NodeProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
@@ -260,6 +270,9 @@ public class LogProcessingService {
                 .map(n -> n.getMetadata().getName())
                 .collect(Collectors.toList());
 
+        // 미수신 리소스 삭제
+        namespaceProfileRepository.deleteByNameNotIn(keys);
+
         List<NamespaceProfile> existingProfiles = namespaceProfileRepository.findByNameIn(keys);
         Map<String, NamespaceProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
@@ -301,6 +314,10 @@ public class LogProcessingService {
                 .filter(e -> e.getMetadata() != null)
                 .map(e -> e.getMetadata().getUid())
                 .collect(Collectors.toList());
+
+        // 이벤트는 삭제하지 않고 누적하는 것이 일반적이지만, 동기화 관점에서는 삭제할 수도 있음.
+        // 여기서는 요청에 따라 삭제 로직 추가 (필요 시 주석 처리 가능)
+        eventProfileRepository.deleteByUidNotIn(keys);
 
         List<EventProfile> existingProfiles = eventProfileRepository.findByUidIn(keys);
         Map<String, EventProfile> profileMap = existingProfiles.stream()
@@ -356,6 +373,9 @@ public class LogProcessingService {
             if (dep.getMetadata() == null) continue;
             keys.add(dep.getMetadata().getNamespace() + "/" + dep.getMetadata().getName());
         }
+
+        // 미수신 리소스 삭제
+        deploymentProfileRepository.deleteByKeysNotIn(keys);
 
         List<DeploymentProfile> existingProfiles = deploymentProfileRepository.findAllByKeys(keys);
         Map<String, DeploymentProfile> profileMap = existingProfiles.stream()
