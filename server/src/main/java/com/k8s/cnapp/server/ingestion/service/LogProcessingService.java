@@ -62,10 +62,14 @@ public class LogProcessingService {
     private void processPods(List<V1Pod> pods) {
         if (pods == null || pods.isEmpty()) return;
 
-        // 1. Bulk Fetch
+        // 1. Bulk Fetch & Map Mapping (Duplicate Key 해결)
         List<PodProfile> existingProfiles = podProfileRepository.findAll();
         Map<String, PodProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(p -> p.getAssetContext().getAssetKey() + "/" + p.getAssetContext().getContainerName(), Function.identity()));
+                .collect(Collectors.toMap(
+                        p -> p.getAssetContext().getAssetKey() + "/" + p.getAssetContext().getContainerName(),
+                        Function.identity(),
+                        (existing, replacement) -> existing // 중복 키 발생 시 기존 값 유지
+                ));
 
         List<PodProfile> toSave = new ArrayList<>();
 
@@ -101,20 +105,12 @@ public class LogProcessingService {
 
             PodProfile existing = profileMap.get(key);
             if (existing != null) {
-                // Update
-                boolean changed = false;
-                if (!Objects.equals(existing.getAssetContext().getImage(), image) || 
-                    !Objects.equals(existing.getAssetContext().getDeploymentName(), deploymentName)) {
-                    existing.updateAssetContext(new AssetContext(namespace, podName, containerName, image, deploymentName));
-                    changed = true;
-                }
-                // Security Context Update (필요 시 메서드 추가하여 비교 로직 구현)
-                // 여기서는 간단히 항상 업데이트 호출 (내부적으로 값 비교 가능)
+                // Update (Dirty Checking으로 자동 반영되지만, 명시적 처리를 위해 로직 유지)
+                existing.updateAssetContext(new AssetContext(namespace, podName, containerName, image, deploymentName));
                 existing.updateSecurityContext(privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem);
-                
-                if (changed) toSave.add(existing); // 변경된 것만 저장 목록에 추가 (JPA라 사실 필요 없지만 명시적으로)
+                // 기존 객체는 toSave에 넣지 않아도 @Transactional에 의해 업데이트됨
             } else {
-                // Insert
+                // Insert (신규 객체만 리스트에 추가)
                 toSave.add(new PodProfile(
                         new AssetContext(namespace, podName, containerName, image, deploymentName),
                         Collections.emptyMap(),
@@ -126,10 +122,11 @@ public class LogProcessingService {
             }
         }
         
+        // 4. Batch Save (신규 객체만 저장)
         if (!toSave.isEmpty()) {
             podProfileRepository.saveAll(toSave);
         }
-        log.info("Processed Pods: Total={}, Saved/Updated={}", pods.size(), toSave.size());
+        log.info("Processed Pods: Total={}, New={}", pods.size(), toSave.size());
     }
 
     private void processServices(List<V1Service> services) {
@@ -137,7 +134,11 @@ public class LogProcessingService {
 
         List<ServiceProfile> existingProfiles = serviceProfileRepository.findAllWithPorts();
         Map<String, ServiceProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(s -> s.getNamespace() + "/" + s.getName(), Function.identity()));
+                .collect(Collectors.toMap(
+                        s -> s.getNamespace() + "/" + s.getName(),
+                        Function.identity(),
+                        (existing, replacement) -> existing
+                ));
 
         List<ServiceProfile> toSave = new ArrayList<>();
 
@@ -153,22 +154,14 @@ public class LogProcessingService {
 
             ServiceProfile existing = profileMap.get(key);
             if (existing != null) {
-                boolean isChanged = !Objects.equals(existing.getType(), type) ||
-                                    !Objects.equals(existing.getClusterIp(), clusterIp) ||
-                                    !Objects.equals(existing.getExternalIps(), externalIps);
+                existing.update(type, clusterIp, externalIps);
                 
-                // 포트 비교 로직은 복잡하므로 일단 생략하고 무조건 갱신 (최적화 필요 시 추가)
                 existing.clearPorts();
                 if (service.getSpec().getPorts() != null) {
                     for (V1ServicePort port : service.getSpec().getPorts()) {
                         String targetPort = port.getTargetPort() != null ? port.getTargetPort().toString() : null;
                         existing.addPort(new ServicePortProfile(port.getName(), port.getProtocol(), port.getPort(), targetPort, port.getNodePort()));
                     }
-                }
-                
-                if (isChanged) {
-                    existing.update(type, clusterIp, externalIps);
-                    toSave.add(existing);
                 }
             } else {
                 ServiceProfile newSp = new ServiceProfile(namespace, name, type, clusterIp, externalIps);
@@ -185,7 +178,7 @@ public class LogProcessingService {
         if (!toSave.isEmpty()) {
             serviceProfileRepository.saveAll(toSave);
         }
-        log.info("Processed Services: Total={}, Saved/Updated={}", services.size(), toSave.size());
+        log.info("Processed Services: Total={}, New={}", services.size(), toSave.size());
     }
 
     private void processNodes(List<V1Node> nodes) {
@@ -193,7 +186,11 @@ public class LogProcessingService {
 
         List<NodeProfile> existingProfiles = nodeProfileRepository.findAll();
         Map<String, NodeProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(NodeProfile::getName, Function.identity()));
+                .collect(Collectors.toMap(
+                        NodeProfile::getName,
+                        Function.identity(),
+                        (existing, replacement) -> existing
+                ));
 
         List<NodeProfile> toSave = new ArrayList<>();
 
@@ -213,17 +210,7 @@ public class LogProcessingService {
 
             NodeProfile existing = profileMap.get(name);
             if (existing != null) {
-                boolean isChanged = !Objects.equals(existing.getOsImage(), osImage) ||
-                                    !Objects.equals(existing.getKernelVersion(), kernelVersion) ||
-                                    !Objects.equals(existing.getContainerRuntimeVersion(), containerRuntimeVersion) ||
-                                    !Objects.equals(existing.getKubeletVersion(), kubeletVersion) ||
-                                    !Objects.equals(existing.getCpuCapacity(), cpu) ||
-                                    !Objects.equals(existing.getMemoryCapacity(), memory);
-
-                if (isChanged) {
-                    existing.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
-                    toSave.add(existing);
-                }
+                existing.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
             } else {
                 toSave.add(new NodeProfile(name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory));
             }
@@ -232,7 +219,7 @@ public class LogProcessingService {
         if (!toSave.isEmpty()) {
             nodeProfileRepository.saveAll(toSave);
         }
-        log.info("Processed Nodes: Total={}, Saved/Updated={}", nodes.size(), toSave.size());
+        log.info("Processed Nodes: Total={}, New={}", nodes.size(), toSave.size());
     }
 
     private void processNamespaces(List<V1Namespace> namespaces) {
@@ -240,7 +227,11 @@ public class LogProcessingService {
 
         List<NamespaceProfile> existingProfiles = namespaceProfileRepository.findAll();
         Map<String, NamespaceProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(NamespaceProfile::getName, Function.identity()));
+                .collect(Collectors.toMap(
+                        NamespaceProfile::getName,
+                        Function.identity(),
+                        (existing, replacement) -> existing
+                ));
 
         List<NamespaceProfile> toSave = new ArrayList<>();
 
@@ -251,10 +242,7 @@ public class LogProcessingService {
 
             NamespaceProfile existing = profileMap.get(name);
             if (existing != null) {
-                if (!Objects.equals(existing.getStatus(), status)) {
-                    existing.update(status);
-                    toSave.add(existing);
-                }
+                existing.update(status);
             } else {
                 toSave.add(new NamespaceProfile(name, status));
             }
@@ -263,17 +251,19 @@ public class LogProcessingService {
         if (!toSave.isEmpty()) {
             namespaceProfileRepository.saveAll(toSave);
         }
-        log.info("Processed Namespaces: Total={}, Saved/Updated={}", namespaces.size(), toSave.size());
+        log.info("Processed Namespaces: Total={}, New={}", namespaces.size(), toSave.size());
     }
 
     private void processEvents(List<CoreV1Event> events) {
         if (events == null || events.isEmpty()) return;
 
-        // 이벤트는 양이 많을 수 있으므로 UID 목록으로 조회하는 것이 나을 수 있으나,
-        // 여기서는 일관성을 위해 전체 로드 방식을 유지하되, 실제 운영 시에는 최적화 필요 (예: 최근 1시간 데이터만 로드)
         List<EventProfile> existingProfiles = eventProfileRepository.findAll();
         Map<String, EventProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(EventProfile::getUid, Function.identity()));
+                .collect(Collectors.toMap(
+                        EventProfile::getUid,
+                        Function.identity(),
+                        (existing, replacement) -> existing
+                ));
 
         List<EventProfile> toSave = new ArrayList<>();
 
@@ -286,10 +276,7 @@ public class LogProcessingService {
 
             EventProfile existing = profileMap.get(uid);
             if (existing != null) {
-                if (!Objects.equals(existing.getCount(), count)) {
-                    existing.update(count, lastTimestamp, message);
-                    toSave.add(existing);
-                }
+                existing.update(count, lastTimestamp, message);
             } else {
                 toSave.add(new EventProfile(
                         event.getMetadata().getNamespace(),
@@ -308,7 +295,7 @@ public class LogProcessingService {
         if (!toSave.isEmpty()) {
             eventProfileRepository.saveAll(toSave);
         }
-        log.info("Processed Events: Total={}, Saved/Updated={}", events.size(), toSave.size());
+        log.info("Processed Events: Total={}, New={}", events.size(), toSave.size());
     }
     
     private void processDeployments(List<V1Deployment> deployments) {
@@ -316,7 +303,11 @@ public class LogProcessingService {
 
         List<DeploymentProfile> existingProfiles = deploymentProfileRepository.findAll();
         Map<String, DeploymentProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(d -> d.getNamespace() + "/" + d.getName(), Function.identity()));
+                .collect(Collectors.toMap(
+                        d -> d.getNamespace() + "/" + d.getName(),
+                        Function.identity(),
+                        (existing, replacement) -> existing
+                ));
 
         List<DeploymentProfile> toSave = new ArrayList<>();
 
@@ -333,15 +324,7 @@ public class LogProcessingService {
 
             DeploymentProfile existing = profileMap.get(key);
             if (existing != null) {
-                boolean isChanged = !Objects.equals(existing.getReplicas(), replicas) ||
-                                    !Objects.equals(existing.getAvailableReplicas(), availableReplicas) ||
-                                    !Objects.equals(existing.getStrategyType(), strategy) ||
-                                    !Objects.equals(existing.getSelectorJson(), selectorJson);
-
-                if (isChanged) {
-                    existing.update(replicas, availableReplicas, strategy, selectorJson);
-                    toSave.add(existing);
-                }
+                existing.update(replicas, availableReplicas, strategy, selectorJson);
             } else {
                 toSave.add(new DeploymentProfile(namespace, name, replicas, availableReplicas, strategy, selectorJson));
             }
@@ -350,7 +333,7 @@ public class LogProcessingService {
         if (!toSave.isEmpty()) {
             deploymentProfileRepository.saveAll(toSave);
         }
-        log.info("Processed Deployments: Total={}, Saved/Updated={}", deployments.size(), toSave.size());
+        log.info("Processed Deployments: Total={}, New={}", deployments.size(), toSave.size());
     }
 
     private String extractDeploymentName(V1Pod pod) {
