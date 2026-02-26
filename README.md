@@ -1,6 +1,7 @@
 
 아키텍처
-![Uploading Gemini_Generated_Image_h4ta55h4ta55h4ta.png…]()
+
+<img width="3136" height="1344" alt="Gemini_Generated_Image_h4ta55h4ta55h4ta" src="https://github.com/user-attachments/assets/094f6487-7b19-431a-8512-926392d9ba60" />
 
 
 
