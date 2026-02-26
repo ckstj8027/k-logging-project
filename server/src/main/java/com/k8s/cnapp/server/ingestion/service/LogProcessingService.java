@@ -128,7 +128,6 @@ public class LogProcessingService {
             } else {
                 toSave.add(new PodProfile(
                         new AssetContext(namespace, podName, containerName, image, deploymentName),
-                        Collections.emptyMap(),
                         privileged,
                         runAsUser,
                         allowPrivilegeEscalation,

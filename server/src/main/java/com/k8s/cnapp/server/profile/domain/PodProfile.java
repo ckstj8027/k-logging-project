@@ -8,7 +8,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @Entity
 @Getter
@@ -42,13 +41,6 @@ public class PodProfile {
     @Column(name = "read_only_root_filesystem")
     private Boolean readOnlyRootFilesystem;
 
-    // --- Feature Vector (통계적 특징 - 추후 eBPF 연동 시 사용 가능) ---
-    @ElementCollection
-    @CollectionTable(name = "pod_profile_features", joinColumns = @JoinColumn(name = "pod_profile_id"))
-    @MapKeyColumn(name = "feature_name")
-    @Column(name = "feature_value")
-    private Map<String, Double> features;
-
     // --- Metadata ---
     @CreationTimestamp
     private LocalDateTime createdAt;
@@ -56,22 +48,14 @@ public class PodProfile {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    // Type 필드 삭제 (Learning/Inference 구분 없음)
-
-    public PodProfile(AssetContext assetContext, Map<String, Double> features,
+    public PodProfile(AssetContext assetContext,
                       Boolean privileged, Long runAsUser, Boolean allowPrivilegeEscalation, Boolean readOnlyRootFilesystem) {
         this.assetContext = assetContext;
-        this.features = features;
         this.privileged = privileged;
         this.runAsUser = runAsUser;
         this.runAsRoot = (runAsUser != null && runAsUser == 0);
         this.allowPrivilegeEscalation = allowPrivilegeEscalation;
         this.readOnlyRootFilesystem = readOnlyRootFilesystem;
-    }
-
-    public void updateFeatures(Map<String, Double> newFeatures) {
-        this.features.clear();
-        this.features.putAll(newFeatures);
     }
 
     public void updateAssetContext(AssetContext newAssetContext) {
