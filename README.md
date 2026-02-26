@@ -7,6 +7,7 @@ agent 가 리소스를 수집하여 서버로 보내 처리
 
 <img width="1907" height="502" alt="화면 캡처 2026-02-26 193428" src="https://github.com/user-attachments/assets/52b11182-3f79-467f-9772-768e1acd6db7" />
 
+pod, service, alerts 세부 정보 확인가능 
 
 <img width="1878" height="808" alt="화면 캡처 2026-02-26 193453" src="https://github.com/user-attachments/assets/2094a3e2-d5fc-49ca-8a61-640c8eeaa041" />
 
@@ -15,6 +16,7 @@ agent 가 리소스를 수집하여 서버로 보내 처리
 
 
 <img width="1900" height="806" alt="화면 캡처 2026-02-26 193526" src="https://github.com/user-attachments/assets/7f882197-6aaa-4889-84d0-773abd3be79e" />
+
 
 위험한 pod 배포 
 <img width="450" height="122" alt="화면 캡처 2026-02-26 193600" src="https://github.com/user-attachments/assets/6bf2d307-dee3-4c07-914f-4a4676f47d0e" />
