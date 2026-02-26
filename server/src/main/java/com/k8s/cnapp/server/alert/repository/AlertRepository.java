@@ -10,4 +10,7 @@ import java.util.List;
 public interface AlertRepository extends JpaRepository<Alert, Long> {
     // 중복 Alert 방지를 위해 OPEN 상태인 동일 리소스의 Alert 조회
     List<Alert> findByResourceTypeAndResourceNameAndStatus(String resourceType, String resourceName, Alert.Status status);
+
+    // OPEN 상태인 모든 Alert 조회 (벌크 조회용)
+    List<Alert> findByStatus(Alert.Status status);
 }
