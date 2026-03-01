@@ -1,5 +1,6 @@
 package com.k8s.cnapp.server.profile.domain;
 
+import com.k8s.cnapp.server.auth.domain.Tenant;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -21,6 +22,10 @@ public class EventProfile {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
 
     @Column(nullable = false)
     private String namespace;
@@ -49,15 +54,11 @@ public class EventProfile {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    // Event는 보통 누적되는 로그 성격이 강하므로 UpdateTimestamp 대신 새로운 레코드로 쌓거나,
-    // 동일한 이벤트(UID 기준)가 오면 count만 증가시키는 전략을 사용함.
-    // 여기서는 단순화를 위해 매번 새로운 레코드로 저장하되, 너무 많으면 주기적으로 삭제하는 정책 필요.
-    // 또는 UID를 Unique Key로 잡고 Count만 업데이트할 수도 있음.
-
     @Column(name = "uid", unique = true)
     private String uid;
 
-    public EventProfile(String namespace, String involvedObjectKind, String involvedObjectName, String reason, String message, String type, OffsetDateTime lastTimestamp, Integer count, String uid) {
+    public EventProfile(Tenant tenant, String namespace, String involvedObjectKind, String involvedObjectName, String reason, String message, String type, OffsetDateTime lastTimestamp, Integer count, String uid) {
+        this.tenant = tenant;
         this.namespace = namespace;
         this.involvedObjectKind = involvedObjectKind;
         this.involvedObjectName = involvedObjectName;

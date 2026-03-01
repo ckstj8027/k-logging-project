@@ -2,6 +2,7 @@ package com.k8s.cnapp.server.ingestion.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.k8s.cnapp.server.auth.domain.Tenant;
 import com.k8s.cnapp.server.ingestion.dto.ClusterSnapshot;
 import com.k8s.cnapp.server.profile.domain.*;
 import com.k8s.cnapp.server.profile.repository.*;
@@ -9,6 +10,8 @@ import io.kubernetes.client.custom.IntOrString;
 import io.kubernetes.client.openapi.models.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,23 +36,39 @@ public class LogProcessingService {
     @Transactional
     public void processRawData(String rawData) {
         try {
-            ClusterSnapshot snapshot = objectMapper.readValue(rawData, ClusterSnapshot.class);
-            logSummary(snapshot);
+            // 현재 인증된 Tenant 정보 가져오기
+            Tenant tenant = getCurrentTenant();
+            if (tenant == null) {
+                log.error("No authenticated tenant found. Skipping processing.");
+                return;
+            }
 
-            processPods(snapshot.pods());
-            processServices(snapshot.services());
-            processNodes(snapshot.nodes());
-            processNamespaces(snapshot.namespaces());
-            processEvents(snapshot.events());
-            processDeployments(snapshot.deployments());
+            ClusterSnapshot snapshot = objectMapper.readValue(rawData, ClusterSnapshot.class);
+            logSummary(snapshot, tenant);
+
+            processPods(snapshot.pods(), tenant);
+            processServices(snapshot.services(), tenant);
+            processNodes(snapshot.nodes(), tenant);
+            processNamespaces(snapshot.namespaces(), tenant);
+            processEvents(snapshot.events(), tenant);
+            processDeployments(snapshot.deployments(), tenant);
 
         } catch (JsonProcessingException e) {
             log.error("Failed to parse raw data to ClusterSnapshot", e);
         }
     }
 
-    private void logSummary(ClusterSnapshot snapshot) {
-        log.info("[Ingest] Received Snapshot (Pods: {}, Services: {}, Nodes: {}, Namespaces: {}, Events: {}, Deployments: {})",
+    private Tenant getCurrentTenant() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof Tenant) {
+            return (Tenant) authentication.getPrincipal();
+        }
+        return null;
+    }
+
+    private void logSummary(ClusterSnapshot snapshot, Tenant tenant) {
+        log.info("[Ingest] Received Snapshot for Tenant: {} (Pods: {}, Services: {}, Nodes: {}, Namespaces: {}, Events: {}, Deployments: {})",
+                tenant.getName(),
                 snapshot.pods() != null ? snapshot.pods().size() : 0,
                 snapshot.services() != null ? snapshot.services().size() : 0,
                 snapshot.nodes() != null ? snapshot.nodes().size() : 0,
@@ -59,10 +78,9 @@ public class LogProcessingService {
         );
     }
 
-    private void processPods(List<V1Pod> pods) {
+    private void processPods(List<V1Pod> pods, Tenant tenant) {
         if (pods == null || pods.isEmpty()) return;
 
-        // 1. 식별자 리스트 추출
         List<String> keys = new ArrayList<>();
         for (V1Pod pod : pods) {
             if (pod.getMetadata() == null || pod.getSpec() == null) continue;
@@ -75,11 +93,11 @@ public class LogProcessingService {
             keys.add(namespace + "/" + (deploymentName != null ? deploymentName : podName) + "/" + containerName);
         }
 
-        // 2. 미수신 리소스 삭제 (동기화)
-        podProfileRepository.deleteByKeysNotIn(keys);
+        // 미수신 리소스 삭제 (Tenant 격리)
+        podProfileRepository.deleteByTenantAndKeysNotIn(tenant, keys);
 
-        // 3. 조건부 벌크 조회 (In-Clause)
-        List<PodProfile> existingProfiles = podProfileRepository.findAllByKeys(keys);
+        // 조건부 벌크 조회 (Tenant 격리)
+        List<PodProfile> existingProfiles = podProfileRepository.findAllByTenantAndKeys(tenant, keys);
         Map<String, PodProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         p -> p.getAssetContext().getAssetKey() + "/" + p.getAssetContext().getContainerName(),
@@ -127,6 +145,7 @@ public class LogProcessingService {
                 existing.updateSecurityContext(privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem);
             } else {
                 toSave.add(new PodProfile(
+                        tenant, // Tenant 추가
                         new AssetContext(namespace, podName, containerName, image, deploymentName),
                         privileged,
                         runAsUser,
@@ -143,7 +162,7 @@ public class LogProcessingService {
         log.info("Processed Pods: Total={}, New={}", pods.size(), toSave.size());
     }
 
-    private void processServices(List<V1Service> services) {
+    private void processServices(List<V1Service> services, Tenant tenant) {
         if (services == null || services.isEmpty()) return;
 
         List<String> keys = new ArrayList<>();
@@ -152,10 +171,11 @@ public class LogProcessingService {
             keys.add(service.getMetadata().getNamespace() + "/" + service.getMetadata().getName());
         }
 
-        // 미수신 리소스 삭제
-        serviceProfileRepository.deleteByKeysNotIn(keys);
+        // 미수신 리소스 삭제 (Tenant 격리)
+        serviceProfileRepository.deleteByTenantAndKeysNotIn(tenant, keys);
 
-        List<ServiceProfile> existingProfiles = serviceProfileRepository.findAllByKeysWithPorts(keys);
+        // 조건부 벌크 조회 (Tenant 격리)
+        List<ServiceProfile> existingProfiles = serviceProfileRepository.findAllByTenantAndKeysWithPorts(tenant, keys);
         Map<String, ServiceProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         s -> s.getNamespace() + "/" + s.getName(),
@@ -189,7 +209,7 @@ public class LogProcessingService {
                     }
                 }
             } else {
-                ServiceProfile newSp = new ServiceProfile(namespace, name, type, clusterIp, externalIps);
+                ServiceProfile newSp = new ServiceProfile(tenant, namespace, name, type, clusterIp, externalIps);
                 if (service.getSpec().getPorts() != null) {
                     for (V1ServicePort port : service.getSpec().getPorts()) {
                         String targetPort = port.getTargetPort() != null ? port.getTargetPort().toString() : null;
@@ -207,7 +227,7 @@ public class LogProcessingService {
         log.info("Processed Services: Total={}, New={}", services.size(), toSave.size());
     }
 
-    private void processNodes(List<V1Node> nodes) {
+    private void processNodes(List<V1Node> nodes, Tenant tenant) {
         if (nodes == null || nodes.isEmpty()) return;
 
         List<String> keys = nodes.stream()
@@ -215,10 +235,11 @@ public class LogProcessingService {
                 .map(n -> n.getMetadata().getName())
                 .collect(Collectors.toList());
 
-        // 미수신 리소스 삭제
-        nodeProfileRepository.deleteByNameNotIn(keys);
+        // 미수신 리소스 삭제 (Tenant 격리)
+        nodeProfileRepository.deleteByTenantAndNameNotIn(tenant, keys);
 
-        List<NodeProfile> existingProfiles = nodeProfileRepository.findByNameIn(keys);
+        // 조건부 벌크 조회 (Tenant 격리)
+        List<NodeProfile> existingProfiles = nodeProfileRepository.findByTenantAndNameIn(tenant, keys);
         Map<String, NodeProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         NodeProfile::getName,
@@ -250,7 +271,7 @@ public class LogProcessingService {
             if (existing != null) {
                 existing.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
             } else {
-                toSave.add(new NodeProfile(name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory));
+                toSave.add(new NodeProfile(tenant, name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory));
             }
             processedKeys.add(name);
         }
@@ -261,7 +282,7 @@ public class LogProcessingService {
         log.info("Processed Nodes: Total={}, New={}", nodes.size(), toSave.size());
     }
 
-    private void processNamespaces(List<V1Namespace> namespaces) {
+    private void processNamespaces(List<V1Namespace> namespaces, Tenant tenant) {
         if (namespaces == null || namespaces.isEmpty()) return;
 
         List<String> keys = namespaces.stream()
@@ -269,10 +290,11 @@ public class LogProcessingService {
                 .map(n -> n.getMetadata().getName())
                 .collect(Collectors.toList());
 
-        // 미수신 리소스 삭제
-        namespaceProfileRepository.deleteByNameNotIn(keys);
+        // 미수신 리소스 삭제 (Tenant 격리)
+        namespaceProfileRepository.deleteByTenantAndNameNotIn(tenant, keys);
 
-        List<NamespaceProfile> existingProfiles = namespaceProfileRepository.findByNameIn(keys);
+        // 조건부 벌크 조회 (Tenant 격리)
+        List<NamespaceProfile> existingProfiles = namespaceProfileRepository.findByTenantAndNameIn(tenant, keys);
         Map<String, NamespaceProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         NamespaceProfile::getName,
@@ -295,7 +317,7 @@ public class LogProcessingService {
             if (existing != null) {
                 existing.update(status);
             } else {
-                toSave.add(new NamespaceProfile(name, status));
+                toSave.add(new NamespaceProfile(tenant, name, status));
             }
             processedKeys.add(name);
         }
@@ -306,7 +328,7 @@ public class LogProcessingService {
         log.info("Processed Namespaces: Total={}, New={}", namespaces.size(), toSave.size());
     }
 
-    private void processEvents(List<CoreV1Event> events) {
+    private void processEvents(List<CoreV1Event> events, Tenant tenant) {
         if (events == null || events.isEmpty()) return;
 
         List<String> keys = events.stream()
@@ -314,11 +336,11 @@ public class LogProcessingService {
                 .map(e -> e.getMetadata().getUid())
                 .collect(Collectors.toList());
 
-        // 이벤트는 삭제하지 않고 누적하는 것이 일반적이지만, 동기화 관점에서는 삭제할 수도 있음.
-        // 여기서는 요청에 따라 삭제 로직 추가 (필요 시 주석 처리 가능)
-        eventProfileRepository.deleteByUidNotIn(keys);
+        // 미수신 리소스 삭제 (Tenant 격리)
+        eventProfileRepository.deleteByTenantAndUidNotIn(tenant, keys);
 
-        List<EventProfile> existingProfiles = eventProfileRepository.findByUidIn(keys);
+        // 조건부 벌크 조회 (Tenant 격리)
+        List<EventProfile> existingProfiles = eventProfileRepository.findByTenantAndUidIn(tenant, keys);
         Map<String, EventProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         EventProfile::getUid,
@@ -344,6 +366,7 @@ public class LogProcessingService {
                 existing.update(count, lastTimestamp, message);
             } else {
                 toSave.add(new EventProfile(
+                        tenant,
                         event.getMetadata().getNamespace(),
                         event.getInvolvedObject().getKind(),
                         event.getInvolvedObject().getName(),
@@ -364,7 +387,7 @@ public class LogProcessingService {
         log.info("Processed Events: Total={}, New={}", events.size(), toSave.size());
     }
     
-    private void processDeployments(List<V1Deployment> deployments) {
+    private void processDeployments(List<V1Deployment> deployments, Tenant tenant) {
         if (deployments == null || deployments.isEmpty()) return;
 
         List<String> keys = new ArrayList<>();
@@ -373,10 +396,11 @@ public class LogProcessingService {
             keys.add(dep.getMetadata().getNamespace() + "/" + dep.getMetadata().getName());
         }
 
-        // 미수신 리소스 삭제
-        deploymentProfileRepository.deleteByKeysNotIn(keys);
+        // 미수신 리소스 삭제 (Tenant 격리)
+        deploymentProfileRepository.deleteByTenantAndKeysNotIn(tenant, keys);
 
-        List<DeploymentProfile> existingProfiles = deploymentProfileRepository.findAllByKeys(keys);
+        // 조건부 벌크 조회 (Tenant 격리)
+        List<DeploymentProfile> existingProfiles = deploymentProfileRepository.findAllByTenantAndKeys(tenant, keys);
         Map<String, DeploymentProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
                         d -> d.getNamespace() + "/" + d.getName(),
@@ -404,7 +428,7 @@ public class LogProcessingService {
             if (existing != null) {
                 existing.update(replicas, availableReplicas, strategy, selectorJson);
             } else {
-                toSave.add(new DeploymentProfile(namespace, name, replicas, availableReplicas, strategy, selectorJson));
+                toSave.add(new DeploymentProfile(tenant, namespace, name, replicas, availableReplicas, strategy, selectorJson));
             }
             processedKeys.add(key);
         }

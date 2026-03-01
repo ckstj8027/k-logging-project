@@ -1,5 +1,6 @@
 package com.k8s.cnapp.server.alert.domain;
 
+import com.k8s.cnapp.server.auth.domain.Tenant;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,6 +18,10 @@ public class Alert {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
 
     @Enumerated(EnumType.STRING)
     private Severity severity;
@@ -39,7 +44,8 @@ public class Alert {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    public Alert(Severity severity, Category category, String message, String resourceType, String resourceName) {
+    public Alert(Tenant tenant, Severity severity, Category category, String message, String resourceType, String resourceName) {
+        this.tenant = tenant;
         this.severity = severity;
         this.category = category;
         this.message = message;

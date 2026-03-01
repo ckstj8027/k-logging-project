@@ -1,5 +1,6 @@
 package com.k8s.cnapp.server.profile.domain;
 
+import com.k8s.cnapp.server.auth.domain.Tenant;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -13,13 +14,17 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "deployment_profiles", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_deployment_profile", columnNames = {"namespace", "name"})
+        @UniqueConstraint(name = "uk_deployment_profile", columnNames = {"tenant_id", "namespace", "name"})
 })
 public class DeploymentProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
 
     @Column(nullable = false)
     private String namespace;
@@ -45,7 +50,8 @@ public class DeploymentProfile {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public DeploymentProfile(String namespace, String name, Integer replicas, Integer availableReplicas, String strategyType, String selectorJson) {
+    public DeploymentProfile(Tenant tenant, String namespace, String name, Integer replicas, Integer availableReplicas, String strategyType, String selectorJson) {
+        this.tenant = tenant;
         this.namespace = namespace;
         this.name = name;
         this.replicas = replicas;

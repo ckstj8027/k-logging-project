@@ -1,5 +1,6 @@
 package com.k8s.cnapp.server.profile.domain;
 
+import com.k8s.cnapp.server.auth.domain.Tenant;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -13,13 +14,17 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "pod_profiles", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_pod_profile_asset", columnNames = {"namespace", "pod_name", "container_name"})
+        @UniqueConstraint(name = "uk_pod_profile_asset", columnNames = {"tenant_id", "namespace", "pod_name", "container_name"})
 })
 public class PodProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
 
     // --- Asset Context (자산 정보) ---
     @Embedded
@@ -48,8 +53,9 @@ public class PodProfile {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public PodProfile(AssetContext assetContext,
+    public PodProfile(Tenant tenant, AssetContext assetContext,
                       Boolean privileged, Long runAsUser, Boolean allowPrivilegeEscalation, Boolean readOnlyRootFilesystem) {
+        this.tenant = tenant;
         this.assetContext = assetContext;
         this.privileged = privileged;
         this.runAsUser = runAsUser;

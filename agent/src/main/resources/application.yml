@@ -16,3 +16,7 @@ agent:
 cnapp:
   server:
     url: http://localhost:8080/api/v1/ingestion/raw
+  agent:
+    # 서버 인증을 위한 API Key (없을 경우 HttpDataSender에서 경고 발생)
+    # 직접 입력하거나, 시스템 환경 변수 CNAPP_AGENT_API_KEY를 통해 주입 가능
+    api-key: ${CNAPP_AGENT_API_KEY:default-test-key-12345}

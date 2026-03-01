@@ -1,5 +1,6 @@
 package com.k8s.cnapp.server.profile.domain;
 
+import com.k8s.cnapp.server.auth.domain.Tenant;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -13,13 +14,17 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "node_profiles", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_node_profile", columnNames = {"name"})
+        @UniqueConstraint(name = "uk_node_profile", columnNames = {"tenant_id", "name"})
 })
 public class NodeProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
 
     @Column(nullable = false)
     private String name;
@@ -48,7 +53,8 @@ public class NodeProfile {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public NodeProfile(String name, String osImage, String kernelVersion, String containerRuntimeVersion, String kubeletVersion, String cpuCapacity, String memoryCapacity) {
+    public NodeProfile(Tenant tenant, String name, String osImage, String kernelVersion, String containerRuntimeVersion, String kubeletVersion, String cpuCapacity, String memoryCapacity) {
+        this.tenant = tenant;
         this.name = name;
         this.osImage = osImage;
         this.kernelVersion = kernelVersion;

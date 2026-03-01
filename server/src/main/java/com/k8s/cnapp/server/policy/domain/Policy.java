@@ -1,5 +1,6 @@
 package com.k8s.cnapp.server.policy.domain;
 
+import com.k8s.cnapp.server.auth.domain.Tenant;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -12,13 +13,17 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "policies", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_policy_rule", columnNames = {"resource_type", "rule_type"})
+        @UniqueConstraint(name = "uk_policy_rule", columnNames = {"tenant_id", "resource_type", "rule_type"})
 })
 public class Policy {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "resource_type", nullable = false)
@@ -40,7 +45,8 @@ public class Policy {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public Policy(ResourceType resourceType, RuleType ruleType, String value, String description) {
+    public Policy(Tenant tenant, ResourceType resourceType, RuleType ruleType, String value, String description) {
+        this.tenant = tenant;
         this.resourceType = resourceType;
         this.ruleType = ruleType;
         this.value = value;

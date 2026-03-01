@@ -33,6 +33,9 @@ public class HttpDataSender implements DataSender {
     @Value("${cnapp.server.url:http://localhost:8080/api/v1/ingestion/raw}")
     private String serverUrl;
 
+    @Value("${cnapp.agent.api-key:}") // API Key 설정 추가 (기본값은 빈 문자열)
+    private String apiKey;
+
     public HttpDataSender() {
         this.restTemplate = new RestTemplate();
         this.gson = new GsonBuilder()
@@ -68,6 +71,14 @@ public class HttpDataSender implements DataSender {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            // API Key 헤더 추가
+            if (apiKey != null && !apiKey.isEmpty()) {
+                headers.set("X-API-KEY", apiKey);
+            } else {
+                logger.warn("API Key is not configured. Server might reject the request.");
+            }
+
             HttpEntity<String> entity = new HttpEntity<>(snapshotJson, headers);
             
             // 실제 전송

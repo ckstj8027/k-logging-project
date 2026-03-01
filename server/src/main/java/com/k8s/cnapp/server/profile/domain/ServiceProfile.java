@@ -1,5 +1,6 @@
 package com.k8s.cnapp.server.profile.domain;
 
+import com.k8s.cnapp.server.auth.domain.Tenant;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -15,13 +16,17 @@ import java.util.List;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "service_profiles", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_service_profile", columnNames = {"namespace", "name"})
+        @UniqueConstraint(name = "uk_service_profile", columnNames = {"tenant_id", "namespace", "name"})
 })
 public class ServiceProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
 
     @Column(nullable = false)
     private String namespace;
@@ -48,7 +53,8 @@ public class ServiceProfile {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public ServiceProfile(String namespace, String name, String type, String clusterIp, String externalIps) {
+    public ServiceProfile(Tenant tenant, String namespace, String name, String type, String clusterIp, String externalIps) {
+        this.tenant = tenant;
         this.namespace = namespace;
         this.name = name;
         this.type = type;
