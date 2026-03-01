@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cnapp-agent-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cnapp-agent-cr
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "nodes", "namespaces", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies", "ingresses"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cnapp-agent-crb
+subjects:
+  - kind: ServiceAccount
+    name: cnapp-agent-sa
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: cnapp-agent-cr
+  apiGroup: rbac.authorization.k8s.io
+---
+# API Key 관리를 위한 Secret 리소스 추가
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cnapp-agent-secret
+  namespace: default
+type: Opaque
+stringData:
+  # 실제 서버에서 발급받은 API Key를 여기에 기입하세요.
+  agent-api-key: "default-test-key-12345"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cnapp-agent
+  labels:
+    app: cnapp-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cnapp-agent
+  template:
+    metadata:
+      labels:
+        app: cnapp-agent
+    spec:
+      serviceAccountName: cnapp-agent-sa
+      containers:
+        - name: agent
+          image: ckstj8027/cnapp-agent:latest
+          imagePullPolicy: Always
+          env:
+            # 서버 URL 설정
+            - name: CNAPP_SERVER_URL
+              value: "http://cnapp-server:8080/api/v1/ingestion/raw"
+
+            # Secret에서 API Key 주입 (애플리케이션의 cnapp.agent.api-key 설정과 매핑됨)
+            - name: CNAPP_AGENT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cnapp-agent-secret
+                  key: agent-api-key
