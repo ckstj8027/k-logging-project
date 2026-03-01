@@ -41,7 +41,7 @@ metadata:
 type: Opaque
 stringData:
   # 실제 서버에서 발급받은 API Key를 여기에 기입하세요.
-  agent-api-key: "default-test-key-12345"
+  agent-api-key: "ab947062-ec27-47bd-9356-a258093b6c6e"
 ---
 apiVersion: apps/v1
 kind: Deployment

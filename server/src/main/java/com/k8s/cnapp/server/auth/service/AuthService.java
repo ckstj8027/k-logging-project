@@ -4,6 +4,7 @@ import com.k8s.cnapp.server.auth.domain.Tenant;
 import com.k8s.cnapp.server.auth.domain.User;
 import com.k8s.cnapp.server.auth.repository.TenantRepository;
 import com.k8s.cnapp.server.auth.repository.UserRepository;
+import com.k8s.cnapp.server.policy.service.PolicyService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,19 +21,28 @@ public class AuthService {
 
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
+    private final PolicyService policyService;
 
     @PostConstruct
     @Transactional
     public void initDefaultData() {
-        // 1. Default Tenant 생성
-        if (tenantRepository.count() == 0) {
-            Tenant defaultTenant = new Tenant("Default Company");
-            tenantRepository.save(defaultTenant);
-            log.info("Created default tenant: {} (API Key: {})", defaultTenant.getName(), defaultTenant.getApiKey());
+        String defaultTenantName = "Default Company";
+        
+        // 1. Default Tenant 생성 (이름으로 중복 체크)
+        Tenant defaultTenant = tenantRepository.findByName(defaultTenantName).orElseGet(() -> {
+            Tenant newTenant = new Tenant(defaultTenantName);
+            tenantRepository.save(newTenant);
+            log.info("Created default tenant: {} (API Key: {})", newTenant.getName(), newTenant.getApiKey());
+            
+            // 신규 생성 시에만 정책 생성
+            policyService.createDefaultPoliciesForTenant(newTenant);
+            return newTenant;
+        });
 
-            // 2. Default Admin User 생성
-            // 패스워드는 일단 평문으로 저장 (나중에 Security 설정 시 인코딩 적용 필요)
-            User admin = new User("admin", "{noop}admin123", User.Role.ADMIN, defaultTenant);
+        // 2. Default Admin User 생성 (이름으로 중복 체크)
+        String adminUsername = "admin";
+        if (userRepository.findByUsername(adminUsername).isEmpty()) {
+            User admin = new User(adminUsername, "{noop}admin123", User.Role.ADMIN, defaultTenant);
             userRepository.save(admin);
             log.info("Created default admin user: {}", admin.getUsername());
         }
