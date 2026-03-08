@@ -28,16 +28,20 @@ public class PolicyService {
     }
 
     public void createDefaultPoliciesForTenant(Tenant tenant) {
+        // Pod Policies
         createIfNotExists(tenant, Policy.ResourceType.POD, Policy.RuleType.PRIVILEGED_DENY, "true", "Disallow privileged containers");
         createIfNotExists(tenant, Policy.ResourceType.POD, Policy.RuleType.RUN_AS_ROOT_DENY, "true", "Disallow running as root");
         createIfNotExists(tenant, Policy.ResourceType.POD, Policy.RuleType.IMAGE_LATEST_TAG_DENY, "true", "Disallow 'latest' image tag");
         
+        // Service Policies
         createIfNotExists(tenant, Policy.ResourceType.SERVICE, Policy.RuleType.PORT_BLACKLIST, "21,22,23,25,53,110,143,389,445,3306,3389,5432,6379,27017", "Blacklisted ports for external exposure");
         createIfNotExists(tenant, Policy.ResourceType.SERVICE, Policy.RuleType.EXTERNAL_IP_DENY, "true", "Warn on LoadBalancer/NodePort services");
 
+        // Deployment Policies
         createIfNotExists(tenant, Policy.ResourceType.DEPLOYMENT, Policy.RuleType.REPLICA_MAX_LIMIT, "10", "Max replica count warning");
         createIfNotExists(tenant, Policy.ResourceType.DEPLOYMENT, Policy.RuleType.REPLICA_MIN_LIMIT, "1", "Min replica count warning (0 means down)");
 
+        // Node Policies
         createIfNotExists(tenant, Policy.ResourceType.NODE, Policy.RuleType.CPU_LIMIT_CORES, "8", "Node CPU capacity limit (cores)");
         createIfNotExists(tenant, Policy.ResourceType.NODE, Policy.RuleType.MEMORY_LIMIT_BYTES, "34359738368", "Node Memory capacity limit (32GB)");
     }
@@ -54,10 +58,13 @@ public class PolicyService {
         return policyRepository.findAllByTenant(tenant);
     }
 
+    public Policy getPolicyById(Long id) {
+        return policyRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Policy not found"));
+    }
+
     @Transactional
     public Policy updatePolicy(Long id, String value, boolean enabled) {
-        // 본인 Tenant의 정책인지 확인 필요 (여기서는 간단히 ID로 조회하지만, 실제로는 Tenant 검증 로직 추가 권장)
-        Policy policy = policyRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Policy not found"));
+        Policy policy = getPolicyById(id);
         
         // Tenant 검증
         Tenant currentTenant = authService.getCurrentTenant();
@@ -70,10 +77,6 @@ public class PolicyService {
     }
     
     public String getPolicyValue(Policy.ResourceType resourceType, Policy.RuleType ruleType) {
-        // 현재 로그인한 사용자의 Tenant 정책 값 조회 (스캐너 등 내부 로직용)
-        // 주의: SecurityScannerService는 스케줄러에 의해 실행되므로 SecurityContext가 없을 수 있음.
-        // 따라서 스캐너에서는 Tenant를 명시적으로 넘겨주거나, 모든 Tenant를 순회하며 검사해야 함.
-        // 여기서는 일단 SecurityContext가 있다고 가정 (Controller 호출 시)
         try {
             Tenant tenant = authService.getCurrentTenant();
             return getPolicyValueForTenant(tenant, resourceType, ruleType);

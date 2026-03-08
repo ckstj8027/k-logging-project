@@ -51,6 +51,7 @@ public class Policy {
         this.ruleType = ruleType;
         this.value = value;
         this.description = description;
+        this.enabled = true;
     }
 
     public void update(String value, boolean enabled) {
