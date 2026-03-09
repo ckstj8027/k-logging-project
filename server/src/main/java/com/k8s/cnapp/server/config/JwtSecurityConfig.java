@@ -27,7 +27,7 @@ public class JwtSecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/login", "/css/**", "/js/**", "/images/**").permitAll()
+                .requestMatchers("/api/signup", "/api/auth/**", "/api/login", "/css/**", "/js/**", "/images/**").permitAll()
                 .requestMatchers("/api/v1/ingestion/**").hasRole("AGENT")
                 .anyRequest().authenticated()
             )

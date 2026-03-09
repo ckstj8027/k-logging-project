@@ -21,6 +21,11 @@ spring:
           batch_size: 50           # 2. 한 번에 50개씩 묶어서 실행
           order_inserts: true        # 3. Insert 순서 최적화 (Batch 확률 높임)
           order_updates: true        # 4. Update 순서 최적화
+  # 배열(Timestamp) 대신 문자열로 출력
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
 server:
   port: 8080
 
@@ -31,3 +36,4 @@ logging:
 jwt:
   secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
   expiration: 86400000 # 1 day
+
