@@ -68,6 +68,7 @@ public class Policy {
         PRIVILEGED_DENY, // true/false (true면 privileged 허용 안 함)
         RUN_AS_ROOT_DENY, // true/false
         IMAGE_LATEST_TAG_DENY, // true/false
+        NAMESPACE_DEFAULT_DENY, // true/false (default 네임스페이스 사용 제한)
 
         // Service
         PORT_BLACKLIST, // "22,3306,..."

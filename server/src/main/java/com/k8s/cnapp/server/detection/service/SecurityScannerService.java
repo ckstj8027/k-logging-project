@@ -6,6 +6,8 @@ import com.k8s.cnapp.server.auth.domain.Tenant;
 import com.k8s.cnapp.server.auth.repository.TenantRepository;
 import com.k8s.cnapp.server.policy.domain.Policy;
 import com.k8s.cnapp.server.policy.service.PolicyService;
+import com.k8s.cnapp.server.detection.policy.PolicyEvaluationResult;
+import com.k8s.cnapp.server.detection.policy.SecurityPolicyContext;
 import com.k8s.cnapp.server.profile.domain.*;
 import com.k8s.cnapp.server.profile.repository.DeploymentProfileRepository;
 import com.k8s.cnapp.server.profile.repository.NodeProfileRepository;
@@ -33,28 +35,24 @@ public class SecurityScannerService {
     private final AlertRepository alertRepository;
     private final PolicyService policyService;
     private final TenantRepository tenantRepository;
+    private final PolicyEngine policyEngine;
 
-    // 1분마다 스캔 실행
     @Scheduled(fixedRate = 60000)
     @Transactional
     public void scan() {
-        log.info("Starting security scan...");
+        log.info("Security Scan: Executing with Policy Engine (Optimized for Scope)...");
         try {
-            // 모든 Tenant에 대해 순차적으로 스캔 수행
             List<Tenant> tenants = tenantRepository.findAll();
             for (Tenant tenant : tenants) {
                 scanForTenant(tenant);
             }
-            log.info("Security scan completed for {} tenants.", tenants.size());
         } catch (Exception e) {
-            log.error("Error during security scan", e);
+            log.error("Critical error during security scan", e);
         }
     }
 
     private void scanForTenant(Tenant tenant) {
-        // 1. 해당 Tenant의 OPEN 상태 Alert 벌크 조회 (메모리 로딩)
-        // AlertRepository에 findAllByTenantAndStatus 메서드 추가 필요 (또는 스트림 필터링)
-        // 여기서는 findAllByStatus 후 필터링 (추후 최적화)
+        // 기존 Alert 로드 (신규 중복 방지용)
         List<Alert> openAlerts = alertRepository.findByStatus(Alert.Status.OPEN).stream()
                 .filter(a -> a.getTenant().getId().equals(tenant.getId()))
                 .toList();
@@ -67,169 +65,52 @@ public class SecurityScannerService {
                 ));
 
         List<Alert> newAlerts = new ArrayList<>();
+        SecurityPolicyContext context = new SecurityPolicyContext(tenant, policyService);
 
-        // 2. 각 리소스 스캔 (Tenant별 데이터 조회)
-        scanPods(tenant, alertMap, newAlerts);
-        scanServices(tenant, alertMap, newAlerts);
-        scanDeployments(tenant, alertMap, newAlerts);
-        scanNodes(tenant, alertMap, newAlerts);
+        // --- Policy Scope 기반 스캔 (타입별 정책만 선별 실행) ---
+        
+        // 1. Pod 스캔 (Policy.ResourceType.POD 정책들만 실행)
+        evaluatePolicies(tenant, Policy.ResourceType.POD, podProfileRepository.findAllByTenant(tenant), alertMap, newAlerts, context);
+        
+        // 2. Service 스캔 (Policy.ResourceType.SERVICE 정책들만 실행)
+        evaluatePolicies(tenant, Policy.ResourceType.SERVICE, serviceProfileRepository.findAllByTenantWithPorts(tenant), alertMap, newAlerts, context);
+        
+        // 3. Deployment 스캔
+        evaluatePolicies(tenant, Policy.ResourceType.DEPLOYMENT, deploymentProfileRepository.findAllByTenant(tenant), alertMap, newAlerts, context);
+        
+        // 4. Node 스캔
+        evaluatePolicies(tenant, Policy.ResourceType.NODE, nodeProfileRepository.findAllByTenant(tenant), alertMap, newAlerts, context);
 
-        // 3. 신규 Alert 일괄 저장
         if (!newAlerts.isEmpty()) {
             alertRepository.saveAll(newAlerts);
-            log.info("Created {} new alerts for tenant {}.", newAlerts.size(), tenant.getName());
+            log.info("Tenant {}: Generated {} new alerts.", tenant.getName(), newAlerts.size());
         }
     }
 
-    private void scanPods(Tenant tenant, Map<String, Alert> alertMap, List<Alert> newAlerts) {
-        List<PodProfile> pods = podProfileRepository.findAllByTenant(tenant);
-        
-        // Tenant별 정책 로드
-        boolean denyPrivileged = "true".equals(policyService.getPolicyValueForTenant(tenant, Policy.ResourceType.POD, Policy.RuleType.PRIVILEGED_DENY));
-        boolean denyRunAsRoot = "true".equals(policyService.getPolicyValueForTenant(tenant, Policy.ResourceType.POD, Policy.RuleType.RUN_AS_ROOT_DENY));
-        boolean denyLatestTag = "true".equals(policyService.getPolicyValueForTenant(tenant, Policy.ResourceType.POD, Policy.RuleType.IMAGE_LATEST_TAG_DENY));
-
-        for (PodProfile pod : pods) {
-            String resourceName = pod.getAssetContext().getAssetKey();
-
-            if (denyPrivileged && Boolean.TRUE.equals(pod.getPrivileged())) {
-                addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.CRITICAL, Alert.Category.CSPM,
-                        "Privileged container detected", "Pod", resourceName);
-            }
-
-            if (denyRunAsRoot && Boolean.TRUE.equals(pod.getRunAsRoot())) {
-                addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.HIGH, Alert.Category.CSPM,
-                        "Container running as root", "Pod", resourceName);
-            }
-
-            if ("default".equals(pod.getAssetContext().getNamespace())) {
-                addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.LOW, Alert.Category.CSPM,
-                        "Pod running in default namespace", "Pod", resourceName);
-            }
+    /**
+     * 특정 리소스 타입의 자산들에 대해 Policy Engine을 통해 정책 평가를 수행
+     */
+    private <T> void evaluatePolicies(Tenant tenant, Policy.ResourceType type, List<T> resources, 
+                                      Map<String, Alert> alertMap, List<Alert> newAlerts, SecurityPolicyContext context) {
+        for (T resource : resources) {
+            String resourceName = getResourceName(resource);
             
-            if (denyLatestTag && pod.getAssetContext().getImage() != null && pod.getAssetContext().getImage().endsWith(":latest")) {
-                 addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.MEDIUM, Alert.Category.CSPM,
-                        "Image using 'latest' tag", "Pod", resourceName);
-            }
-        }
-    }
-
-    private void scanServices(Tenant tenant, Map<String, Alert> alertMap, List<Alert> newAlerts) {
-        List<ServiceProfile> services = serviceProfileRepository.findAllByTenantWithPorts(tenant);
-        
-        // Tenant별 정책 로드
-        String portBlacklistStr = policyService.getPolicyValueForTenant(tenant, Policy.ResourceType.SERVICE, Policy.RuleType.PORT_BLACKLIST);
-        Set<Integer> dangerousPorts = new HashSet<>();
-        if (portBlacklistStr != null && !portBlacklistStr.isEmpty()) {
-            for (String p : portBlacklistStr.split(",")) {
-                try {
-                    dangerousPorts.add(Integer.parseInt(p.trim()));
-                } catch (NumberFormatException ignored) {}
-            }
-        }
-        boolean denyExternalIp = "true".equals(policyService.getPolicyValueForTenant(tenant, Policy.ResourceType.SERVICE, Policy.RuleType.EXTERNAL_IP_DENY));
-
-        for (ServiceProfile service : services) {
-            String resourceName = service.getNamespace() + "/" + service.getName();
-
-            if (denyExternalIp && ("LoadBalancer".equals(service.getType()) || "NodePort".equals(service.getType()))) {
-                addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.MEDIUM, Alert.Category.CSPM,
-                        "Service exposed externally (" + service.getType() + ")", "Service", resourceName);
-                
-                for (ServicePortProfile port : service.getPorts()) {
-                    if (port.getPort() != null && dangerousPorts.contains(port.getPort())) {
-                        addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.HIGH, Alert.Category.CSPM,
-                                "Dangerous port exposed: " + port.getPort() + " (" + port.getProtocol() + ")", 
-                                "Service", resourceName);
-                    }
-                }
-            }
-        }
-    }
-
-    private void scanDeployments(Tenant tenant, Map<String, Alert> alertMap, List<Alert> newAlerts) {
-        List<DeploymentProfile> deployments = deploymentProfileRepository.findAllByTenant(tenant);
-        
-        // Tenant별 정책 로드
-        int maxReplicas = 10;
-        int minReplicas = 1;
-        try {
-            String maxStr = policyService.getPolicyValueForTenant(tenant, Policy.ResourceType.DEPLOYMENT, Policy.RuleType.REPLICA_MAX_LIMIT);
-            String minStr = policyService.getPolicyValueForTenant(tenant, Policy.ResourceType.DEPLOYMENT, Policy.RuleType.REPLICA_MIN_LIMIT);
-            if (maxStr != null) maxReplicas = Integer.parseInt(maxStr);
-            if (minStr != null) minReplicas = Integer.parseInt(minStr);
-        } catch (NumberFormatException ignored) {}
-
-        for (DeploymentProfile deployment : deployments) {
-            String resourceName = deployment.getNamespace() + "/" + deployment.getName();
-
-            if (deployment.getReplicas() != null && deployment.getReplicas() > maxReplicas) {
-                addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.LOW, Alert.Category.CSPM,
-                        "High replica count detected (" + deployment.getReplicas() + " > " + maxReplicas + ")", "Deployment", resourceName);
-            }
+            // Policy Engine이 내부적으로 ResourceType에 매핑된 정책들만 초고속으로 추출하여 실행
+            List<PolicyEvaluationResult> results = policyEngine.evaluate(type, resource, context);
             
-            if (deployment.getReplicas() != null && deployment.getReplicas() < minReplicas) {
-                addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.MEDIUM, Alert.Category.CSPM,
-                        "Low replica count detected (" + deployment.getReplicas() + " < " + minReplicas + ")", "Deployment", resourceName);
+            for (PolicyEvaluationResult result : results) {
+                addAlertIfNew(tenant, alertMap, newAlerts, result.getSeverity(), Alert.Category.CSPM,
+                        result.getMessage(), type.name(), resourceName);
             }
         }
     }
 
-    private void scanNodes(Tenant tenant, Map<String, Alert> alertMap, List<Alert> newAlerts) {
-        List<NodeProfile> nodes = nodeProfileRepository.findAllByTenant(tenant);
-        
-        // Tenant별 정책 로드
-        int cpuLimit = 8;
-        long memoryLimit = 32L * 1024 * 1024 * 1024;
-        try {
-            String cpuStr = policyService.getPolicyValueForTenant(tenant, Policy.ResourceType.NODE, Policy.RuleType.CPU_LIMIT_CORES);
-            String memStr = policyService.getPolicyValueForTenant(tenant, Policy.ResourceType.NODE, Policy.RuleType.MEMORY_LIMIT_BYTES);
-            if (cpuStr != null) cpuLimit = Integer.parseInt(cpuStr);
-            if (memStr != null) memoryLimit = Long.parseLong(memStr);
-        } catch (NumberFormatException ignored) {}
-
-        for (NodeProfile node : nodes) {
-            String resourceName = node.getName();
-
-            // CPU Capacity Check
-            long cpuCores = parseCpu(node.getCpuCapacity());
-            if (cpuCores > cpuLimit) {
-                addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.HIGH, Alert.Category.CSPM,
-                        "Node CPU capacity exceeds limit (" + cpuCores + " > " + cpuLimit + ")", "Node", resourceName);
-            }
-
-            // Memory Capacity Check
-            long memoryBytes = parseMemory(node.getMemoryCapacity());
-            if (memoryBytes > memoryLimit) {
-                addAlertIfNew(tenant, alertMap, newAlerts, Alert.Severity.HIGH, Alert.Category.CSPM,
-                        "Node Memory capacity exceeds limit (" + (memoryBytes / 1024 / 1024 / 1024) + "GB > " + (memoryLimit / 1024 / 1024 / 1024) + "GB)", "Node", resourceName);
-            }
-        }
-    }
-
-    private long parseCpu(String cpuStr) {
-        if (cpuStr == null) return 0;
-        try {
-            if (cpuStr.endsWith("m")) {
-                return Long.parseLong(cpuStr.substring(0, cpuStr.length() - 1)) / 1000;
-            }
-            return Long.parseLong(cpuStr);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    private long parseMemory(String memStr) {
-        if (memStr == null) return 0;
-        try {
-            String lower = memStr.toLowerCase();
-            if (lower.endsWith("ki")) return Long.parseLong(memStr.substring(0, memStr.length() - 2)) * 1024;
-            if (lower.endsWith("mi")) return Long.parseLong(memStr.substring(0, memStr.length() - 2)) * 1024 * 1024;
-            if (lower.endsWith("gi")) return Long.parseLong(memStr.substring(0, memStr.length() - 2)) * 1024 * 1024 * 1024;
-            return Long.parseLong(memStr); // bytes
-        } catch (NumberFormatException e) {
-            return 0;
-        }
+    private String getResourceName(Object resource) {
+        if (resource instanceof PodProfile p) return p.getAssetContext().getAssetKey();
+        if (resource instanceof ServiceProfile s) return s.getNamespace() + "/" + s.getName();
+        if (resource instanceof DeploymentProfile d) return d.getNamespace() + "/" + d.getName();
+        if (resource instanceof NodeProfile n) return n.getName();
+        return "Unknown";
     }
 
     private void addAlertIfNew(Tenant tenant, Map<String, Alert> alertMap, List<Alert> newAlerts, 
