@@ -20,7 +20,8 @@ import java.time.OffsetDateTime;
 public class EventProfile {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "event_profile_seq")
+    @SequenceGenerator(name = "event_profile_seq", sequenceName = "event_profile_seq", allocationSize = 50)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

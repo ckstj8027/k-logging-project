@@ -5,12 +5,12 @@ spring:
 
 
 
-    url: ${DB_URL:jdbc:mysql://localhost:3306/cnappdb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true}
-    username: ${DB_USERNAME:root}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/cnappdb}
+    username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:password}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
   jpa:
-    database-platform: org.hibernate.dialect.MySQLDialect
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
     show-sql: true
@@ -18,9 +18,10 @@ spring:
       hibernate:
         format_sql: true
         jdbc:
-          batch_size: 50           # 2. 한 번에 50개씩 묶어서 실행
-          order_inserts: true        # 3. Insert 순서 최적화 (Batch 확률 높임)
-          order_updates: true        # 4. Update 순서 최적화
+          batch_size: 50           # 한 번에 50개씩 묶어서 실행
+          order_inserts: true        # Insert 순서 최적화 (Batch 확률 높임)
+          order_updates: true        # Update 순서 최적화
+          batch_versioned_data: true # PostgreSQL Sequence 방식에서 배치 최적화 활성화
   # 배열(Timestamp) 대신 문자열로 출력
   jackson:
     serialization:

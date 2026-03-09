@@ -21,7 +21,8 @@ import java.util.List;
 public class ServiceProfile {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "service_profile_seq")
+    @SequenceGenerator(name = "service_profile_seq", sequenceName = "service_profile_seq", allocationSize = 50)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

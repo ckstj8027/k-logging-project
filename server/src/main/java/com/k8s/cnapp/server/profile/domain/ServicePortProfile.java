@@ -12,7 +12,8 @@ import lombok.NoArgsConstructor;
 public class ServicePortProfile {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "service_port_profile_seq")
+    @SequenceGenerator(name = "service_port_profile_seq", sequenceName = "service_port_profile_seq", allocationSize = 50)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

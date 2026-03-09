@@ -16,7 +16,8 @@ import java.util.UUID;
 public class Tenant {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "tenant_seq")
+    @SequenceGenerator(name = "tenant_seq", sequenceName = "tenant_seq", allocationSize = 50)
     private Long id;
 
     @Column(nullable = false, unique = true)

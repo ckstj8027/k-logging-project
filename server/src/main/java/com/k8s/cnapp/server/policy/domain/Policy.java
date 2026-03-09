@@ -18,7 +18,8 @@ import java.time.LocalDateTime;
 public class Policy {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "policy_seq")
+    @SequenceGenerator(name = "policy_seq", sequenceName = "policy_seq", allocationSize = 50)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

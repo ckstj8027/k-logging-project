@@ -16,7 +16,8 @@ import java.time.LocalDateTime;
 public class Alert {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "alert_seq")
+    @SequenceGenerator(name = "alert_seq", sequenceName = "alert_seq", allocationSize = 50)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

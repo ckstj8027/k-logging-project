@@ -19,7 +19,8 @@ import java.time.LocalDateTime;
 public class DeploymentProfile {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "deployment_profile_seq")
+    @SequenceGenerator(name = "deployment_profile_seq", sequenceName = "deployment_profile_seq", allocationSize = 50)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

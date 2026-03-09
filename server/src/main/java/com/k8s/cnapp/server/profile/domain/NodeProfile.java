@@ -19,7 +19,8 @@ import java.time.LocalDateTime;
 public class NodeProfile {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "node_profile_seq")
+    @SequenceGenerator(name = "node_profile_seq", sequenceName = "node_profile_seq", allocationSize = 50)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
