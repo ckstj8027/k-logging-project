@@ -35,7 +35,12 @@ public class AssetContext {
         this.deploymentName = deploymentName;
     }
 
-    // 자산 식별자 (예: namespace/deploymentName)
+    // DB 조회용 고유 키 (유니크 제약 조건과 일치: namespace + podName + containerName)
+    public String getLookupKey() {
+        return String.format("%s/%s/%s", namespace, podName, containerName);
+    }
+
+    // 자산 식별자 (UI 표시용: namespace/deploymentName 또는 namespace/podName)
     public String getAssetKey() {
         return String.format("%s/%s", namespace, deploymentName != null ? deploymentName : podName);
     }

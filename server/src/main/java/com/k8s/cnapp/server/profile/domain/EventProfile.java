@@ -15,18 +15,15 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "event_profiles", indexes = {
         @Index(name = "idx_event_timestamp", columnList = "last_timestamp"),
-        @Index(name = "idx_event_type", columnList = "type")
+        @Index(name = "idx_event_type", columnList = "type"),
+        @Index(name = "idx_event_last_seen", columnList = "last_seen_at")
 })
-public class EventProfile {
+public class EventProfile extends BaseResourceProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "event_profile_seq")
     @SequenceGenerator(name = "event_profile_seq", sequenceName = "event_profile_seq", allocationSize = 50)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
 
     @Column(nullable = false)
     private String namespace;
@@ -52,14 +49,11 @@ public class EventProfile {
     @Column(name = "count")
     private Integer count;
 
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
     @Column(name = "uid", unique = true)
     private String uid;
 
     public EventProfile(Tenant tenant, String namespace, String involvedObjectKind, String involvedObjectName, String reason, String message, String type, OffsetDateTime lastTimestamp, Integer count, String uid) {
-        this.tenant = tenant;
+        super(tenant);
         this.namespace = namespace;
         this.involvedObjectKind = involvedObjectKind;
         this.involvedObjectName = involvedObjectName;

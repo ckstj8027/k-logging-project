@@ -21,6 +21,5 @@ public interface DeploymentProfileRepository extends JpaRepository<DeploymentPro
 
     // 스냅샷에 없는 데이터 삭제 (Tenant 격리)
     @Modifying
-    @Query("DELETE FROM DeploymentProfile d WHERE d.tenant = :tenant AND CONCAT(d.namespace, '/', d.name) NOT IN :keys")
-    void deleteByTenantAndKeysNotIn(@Param("tenant") Tenant tenant, @Param("keys") List<String> keys);
+    void deleteAllByLastSeenAtBefore(java.time.LocalDateTime time);
 }

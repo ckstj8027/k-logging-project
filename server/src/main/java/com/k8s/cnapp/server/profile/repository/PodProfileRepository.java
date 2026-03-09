@@ -20,8 +20,7 @@ public interface PodProfileRepository extends JpaRepository<PodProfile, Long> {
     @Query("SELECT p FROM PodProfile p WHERE p.tenant = :tenant AND CONCAT(p.assetContext.namespace, '/', p.assetContext.podName, '/', p.assetContext.containerName) IN :keys")
     List<PodProfile> findAllByTenantAndKeys(@Param("tenant") Tenant tenant, @Param("keys") List<String> keys);
 
-    // 스냅샷에 없는 데이터 삭제 (Tenant 격리)
+    // GC용: 일정 시간 동안 생존 보고가 없는 데이터 삭제
     @Modifying
-    @Query("DELETE FROM PodProfile p WHERE p.tenant = :tenant AND CONCAT(p.assetContext.namespace, '/', p.assetContext.podName, '/', p.assetContext.containerName) NOT IN :keys")
-    void deleteByTenantAndKeysNotIn(@Param("tenant") Tenant tenant, @Param("keys") List<String> keys);
+    void deleteAllByLastSeenAtBefore(java.time.LocalDateTime time);
 }

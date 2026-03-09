@@ -17,8 +17,6 @@ public interface EventProfileRepository extends JpaRepository<EventProfile, Long
 
     List<EventProfile> findByTenantAndUidIn(Tenant tenant, List<String> uids);
 
-    // 스냅샷에 없는 데이터 삭제 (Tenant 격리)
     @Modifying
-    @Query("DELETE FROM EventProfile e WHERE e.tenant = :tenant AND e.uid NOT IN :uids")
-    void deleteByTenantAndUidNotIn(@Param("tenant") Tenant tenant, @Param("uids") List<String> uids);
+    void deleteAllByLastSeenAtBefore(java.time.LocalDateTime time);
 }

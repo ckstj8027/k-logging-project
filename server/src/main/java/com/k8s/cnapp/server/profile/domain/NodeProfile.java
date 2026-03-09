@@ -15,17 +15,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "node_profiles", uniqueConstraints = {
         @UniqueConstraint(name = "uk_node_profile", columnNames = {"tenant_id", "name"})
+}, indexes = {
+        @Index(name = "idx_node_last_seen", columnList = "last_seen_at")
 })
-public class NodeProfile {
+public class NodeProfile extends BaseResourceProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "node_profile_seq")
     @SequenceGenerator(name = "node_profile_seq", sequenceName = "node_profile_seq", allocationSize = 50)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
 
     @Column(nullable = false)
     private String name;
@@ -48,14 +46,11 @@ public class NodeProfile {
     @Column(name = "memory_capacity")
     private String memoryCapacity;
 
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
     public NodeProfile(Tenant tenant, String name, String osImage, String kernelVersion, String containerRuntimeVersion, String kubeletVersion, String cpuCapacity, String memoryCapacity) {
-        this.tenant = tenant;
+        super(tenant);
         this.name = name;
         this.osImage = osImage;
         this.kernelVersion = kernelVersion;

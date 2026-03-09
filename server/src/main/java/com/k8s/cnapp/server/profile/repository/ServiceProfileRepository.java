@@ -23,6 +23,5 @@ public interface ServiceProfileRepository extends JpaRepository<ServiceProfile, 
 
     // 스냅샷에 없는 데이터 삭제 (Tenant 격리)
     @Modifying
-    @Query("DELETE FROM ServiceProfile s WHERE s.tenant = :tenant AND CONCAT(s.namespace, '/', s.name) NOT IN :keys")
-    void deleteByTenantAndKeysNotIn(@Param("tenant") Tenant tenant, @Param("keys") List<String> keys);
+    void deleteAllByLastSeenAtBefore(java.time.LocalDateTime time);
 }

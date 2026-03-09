@@ -15,17 +15,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "deployment_profiles", uniqueConstraints = {
         @UniqueConstraint(name = "uk_deployment_profile", columnNames = {"tenant_id", "namespace", "name"})
+}, indexes = {
+        @Index(name = "idx_deployment_last_seen", columnList = "last_seen_at")
 })
-public class DeploymentProfile {
+public class DeploymentProfile extends BaseResourceProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "deployment_profile_seq")
     @SequenceGenerator(name = "deployment_profile_seq", sequenceName = "deployment_profile_seq", allocationSize = 50)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
 
     @Column(nullable = false)
     private String namespace;
@@ -45,14 +43,11 @@ public class DeploymentProfile {
     @Column(name = "selector_json", columnDefinition = "TEXT")
     private String selectorJson;
 
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
     public DeploymentProfile(Tenant tenant, String namespace, String name, Integer replicas, Integer availableReplicas, String strategyType, String selectorJson) {
-        this.tenant = tenant;
+        super(tenant);
         this.namespace = namespace;
         this.name = name;
         this.replicas = replicas;

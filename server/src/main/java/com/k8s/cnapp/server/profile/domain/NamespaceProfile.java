@@ -15,17 +15,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "namespace_profiles", uniqueConstraints = {
         @UniqueConstraint(name = "uk_namespace_profile", columnNames = {"tenant_id", "name"})
+}, indexes = {
+        @Index(name = "idx_namespace_last_seen", columnList = "last_seen_at")
 })
-public class NamespaceProfile {
+public class NamespaceProfile extends BaseResourceProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "namespace_profile_seq")
     @SequenceGenerator(name = "namespace_profile_seq", sequenceName = "namespace_profile_seq", allocationSize = 50)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
 
     @Column(nullable = false)
     private String name;
@@ -33,14 +31,11 @@ public class NamespaceProfile {
     @Column(name = "status")
     private String status; // Active, Terminating
 
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
     public NamespaceProfile(Tenant tenant, String name, String status) {
-        this.tenant = tenant;
+        super(tenant);
         this.name = name;
         this.status = status;
     }

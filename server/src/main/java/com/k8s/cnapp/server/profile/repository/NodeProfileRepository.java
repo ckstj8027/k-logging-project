@@ -17,8 +17,6 @@ public interface NodeProfileRepository extends JpaRepository<NodeProfile, Long> 
 
     List<NodeProfile> findByTenantAndNameIn(Tenant tenant, List<String> names);
 
-    // 스냅샷에 없는 데이터 삭제 (Tenant 격리)
     @Modifying
-    @Query("DELETE FROM NodeProfile n WHERE n.tenant = :tenant AND n.name NOT IN :names")
-    void deleteByTenantAndNameNotIn(@Param("tenant") Tenant tenant, @Param("names") List<String> names);
+    void deleteAllByLastSeenAtBefore(java.time.LocalDateTime time);
 }

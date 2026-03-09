@@ -17,17 +17,15 @@ import java.util.List;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "service_profiles", uniqueConstraints = {
         @UniqueConstraint(name = "uk_service_profile", columnNames = {"tenant_id", "namespace", "name"})
+}, indexes = {
+        @Index(name = "idx_service_last_seen", columnList = "last_seen_at")
 })
-public class ServiceProfile {
+public class ServiceProfile extends BaseResourceProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "service_profile_seq")
     @SequenceGenerator(name = "service_profile_seq", sequenceName = "service_profile_seq", allocationSize = 50)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
 
     @Column(nullable = false)
     private String namespace;
@@ -48,14 +46,11 @@ public class ServiceProfile {
     @OneToMany(mappedBy = "serviceProfile", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ServicePortProfile> ports = new ArrayList<>();
 
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
     public ServiceProfile(Tenant tenant, String namespace, String name, String type, String clusterIp, String externalIps) {
-        this.tenant = tenant;
+        super(tenant);
         this.namespace = namespace;
         this.name = name;
         this.type = type;

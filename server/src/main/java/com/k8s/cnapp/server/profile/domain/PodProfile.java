@@ -15,17 +15,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "pod_profiles", uniqueConstraints = {
         @UniqueConstraint(name = "uk_pod_profile_asset", columnNames = {"tenant_id", "namespace", "pod_name", "container_name"})
+}, indexes = {
+        @Index(name = "idx_pod_last_seen", columnList = "last_seen_at")
 })
-public class PodProfile {
+public class PodProfile extends BaseResourceProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "pod_profile_seq")
     @SequenceGenerator(name = "pod_profile_seq", sequenceName = "pod_profile_seq", allocationSize = 50)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
 
     // --- Asset Context (자산 정보) ---
     @Embedded
@@ -47,16 +45,12 @@ public class PodProfile {
     @Column(name = "read_only_root_filesystem")
     private Boolean readOnlyRootFilesystem;
 
-    // --- Metadata ---
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
     public PodProfile(Tenant tenant, AssetContext assetContext,
                       Boolean privileged, Long runAsUser, Boolean allowPrivilegeEscalation, Boolean readOnlyRootFilesystem) {
-        this.tenant = tenant;
+        super(tenant);
         this.assetContext = assetContext;
         this.privileged = privileged;
         this.runAsUser = runAsUser;

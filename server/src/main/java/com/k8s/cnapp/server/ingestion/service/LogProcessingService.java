@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.function.Function;
@@ -109,17 +110,15 @@ public class LogProcessingService {
             
             String namespace = pod.getMetadata().getNamespace();
             String podName = pod.getMetadata().getName();
-            String containerName = pod.getSpec().getContainers().get(0).getName();
-            String deploymentName = extractDeploymentName(pod);
-            keys.add(namespace + "/" + (deploymentName != null ? deploymentName : podName) + "/" + containerName);
+            V1Container container = pod.getSpec().getContainers().get(0);
+            String containerName = container.getName();
+            keys.add(namespace + "/" + podName + "/" + containerName);
         }
-
-        podProfileRepository.deleteByTenantAndKeysNotIn(tenant, keys);
 
         List<PodProfile> existingProfiles = podProfileRepository.findAllByTenantAndKeys(tenant, keys);
         Map<String, PodProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
-                        p -> p.getAssetContext().getAssetKey() + "/" + p.getAssetContext().getContainerName(),
+                        p -> p.getAssetContext().getLookupKey(),
                         Function.identity(),
                         (existing, replacement) -> existing
                 ));
@@ -127,6 +126,7 @@ public class LogProcessingService {
         List<PodProfile> toSave = new ArrayList<>();
         Set<String> processedKeys = new HashSet<>();
         int updatedCount = 0;
+        LocalDateTime now = LocalDateTime.now();
 
         for (V1Pod pod : pods) {
             if (pod.getMetadata() == null || pod.getSpec() == null) continue;
@@ -139,7 +139,7 @@ public class LogProcessingService {
             String containerName = container.getName();
             String image = container.getImage();
             String deploymentName = extractDeploymentName(pod);
-            String key = String.format("%s/%s/%s", namespace, deploymentName != null ? deploymentName : podName, containerName);
+            String key = String.format("%s/%s/%s", namespace, podName, containerName);
 
             if (processedKeys.contains(key)) continue;
 
@@ -159,7 +159,6 @@ public class LogProcessingService {
                 runAsUser = pod.getSpec().getSecurityContext().getRunAsUser();
             }
 
-            // Fingerprint 계산 (보안 핵심 필드 중심)
             String newHash = generateHash(image, privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem);
 
             PodProfile existing = profileMap.get(key);
@@ -168,18 +167,25 @@ public class LogProcessingService {
                                                    existing.getRunAsUser(), existing.getAllowPrivilegeEscalation(), 
                                                    existing.getReadOnlyRootFilesystem());
                 
-                // Fingerprint가 다를 때만 업데이트 (불필요한 Dirty Checking 방지)
-                if (!newHash.equals(existingHash)) {
-                    existing.updateAssetContext(new AssetContext(namespace, podName, containerName, image, deploymentName));
-                    existing.updateSecurityContext(privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem);
-                    updatedCount++;
+                boolean dataChanged = !newHash.equals(existingHash);
+                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
+
+                if (dataChanged || needsHeartbeat) {
+                    existing.updateLastSeenAt(now);
+                    if (dataChanged) {
+                        existing.updateAssetContext(new AssetContext(namespace, podName, containerName, image, deploymentName));
+                        existing.updateSecurityContext(privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem);
+                        updatedCount++;
+                    }
                 }
             } else {
-                toSave.add(new PodProfile(
+                PodProfile newPod = new PodProfile(
                         tenant,
                         new AssetContext(namespace, podName, containerName, image, deploymentName),
                         privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem
-                ));
+                );
+                newPod.updateLastSeenAt(now);
+                toSave.add(newPod);
             }
             processedKeys.add(key);
         }
@@ -197,8 +203,6 @@ public class LogProcessingService {
             keys.add(service.getMetadata().getNamespace() + "/" + service.getMetadata().getName());
         }
 
-        serviceProfileRepository.deleteByTenantAndKeysNotIn(tenant, keys);
-
         List<ServiceProfile> existingProfiles = serviceProfileRepository.findAllByTenantAndKeysWithPorts(tenant, keys);
         Map<String, ServiceProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(
@@ -210,6 +214,7 @@ public class LogProcessingService {
         List<ServiceProfile> toSave = new ArrayList<>();
         Set<String> processedKeys = new HashSet<>();
         int updatedCount = 0;
+        LocalDateTime now = LocalDateTime.now();
 
         for (V1Service service : services) {
             if (service.getMetadata() == null || service.getSpec() == null) continue;
@@ -223,7 +228,6 @@ public class LogProcessingService {
             String clusterIp = service.getSpec().getClusterIP();
             String externalIps = service.getSpec().getExternalIPs() != null ? String.join(",", service.getSpec().getExternalIPs()) : null;
 
-            // 포트 정보를 문자열로 직렬화하여 Hash 생성에 포함
             String portsString = "";
             if (service.getSpec().getPorts() != null) {
                 portsString = service.getSpec().getPorts().stream()
@@ -242,12 +246,16 @@ public class LogProcessingService {
                         .collect(Collectors.joining(","));
                 String existingHash = generateHash(existing.getType(), existing.getClusterIp(), existing.getExternalIps(), existingPortsString);
 
-                if (!newHash.equals(existingHash)) {
-                    existing.update(type, clusterIp, externalIps);
-                    
-                    // Smart Collection Merge (전체 삭제 후 삽입 방지)
-                    mergeServicePorts(existing, service.getSpec().getPorts());
-                    updatedCount++;
+                boolean dataChanged = !newHash.equals(existingHash);
+                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
+
+                if (dataChanged || needsHeartbeat) {
+                    existing.updateLastSeenAt(now);
+                    if (dataChanged) {
+                        existing.update(type, clusterIp, externalIps);
+                        mergeServicePorts(existing, service.getSpec().getPorts());
+                        updatedCount++;
+                    }
                 }
             } else {
                 ServiceProfile newSp = new ServiceProfile(tenant, namespace, name, type, clusterIp, externalIps);
@@ -257,6 +265,7 @@ public class LogProcessingService {
                         newSp.addPort(new ServicePortProfile(port.getName(), port.getProtocol(), port.getPort(), targetPort, port.getNodePort()));
                     }
                 }
+                newSp.updateLastSeenAt(now);
                 toSave.add(newSp);
             }
             processedKeys.add(key);
@@ -273,34 +282,24 @@ public class LogProcessingService {
         }
 
         List<ServicePortProfile> existingPorts = existing.getPorts();
-        
-        // 새로 들어온 포트 리스트를 기반으로 존재 여부 파악
         Set<String> newPortKeys = newPorts.stream()
                 .map(p -> p.getProtocol() + ":" + p.getPort())
                 .collect(Collectors.toSet());
 
-        // 더 이상 존재하지 않는 포트 제거 (Smart Remove)
         existingPorts.removeIf(p -> !newPortKeys.contains(p.getProtocol() + ":" + p.getPort()));
 
-        // 기존 포트를 Map으로 (빠른 매칭용)
         Map<String, ServicePortProfile> existingPortMap = existingPorts.stream()
                 .collect(Collectors.toMap(
                         p -> p.getProtocol() + ":" + p.getPort(),
                         Function.identity()
                 ));
 
-        // 업데이트 또는 신규 추가
         for (V1ServicePort newPort : newPorts) {
             String portKey = newPort.getProtocol() + ":" + newPort.getPort();
             String targetPortStr = newPort.getTargetPort() != null ? newPort.getTargetPort().toString() : null;
             
             ServicePortProfile existingPort = existingPortMap.get(portKey);
-            if (existingPort != null) {
-                // 필요시 필드 갱신 로직 (여기서는 포트번호/프로토콜 외 타겟포트/노드포트 등 갱신 필요)
-                // 만약 필드가 엔티티에 setter가 없다면 지우고 다시 넣거나 setter 추가 필요
-                // 편의상 이 예제에서는 기존 포트가 있다면 그대로 유지 (일반적으로 변경되지 않음)
-                // (더 정밀하게 하려면 ServicePortProfile에 update() 메서드 필요)
-            } else {
+            if (existingPort == null) {
                 existing.addPort(new ServicePortProfile(
                         newPort.getName(), newPort.getProtocol(), newPort.getPort(), 
                         targetPortStr, newPort.getNodePort()
@@ -317,23 +316,18 @@ public class LogProcessingService {
                 .map(n -> n.getMetadata().getName())
                 .collect(Collectors.toList());
 
-        nodeProfileRepository.deleteByTenantAndNameNotIn(tenant, keys);
-
         List<NodeProfile> existingProfiles = nodeProfileRepository.findByTenantAndNameIn(tenant, keys);
         Map<String, NodeProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(
-                        NodeProfile::getName,
-                        Function.identity()
-                ));
+                .collect(Collectors.toMap(NodeProfile::getName, Function.identity()));
 
         List<NodeProfile> toSave = new ArrayList<>();
         Set<String> processedKeys = new HashSet<>();
         int updatedCount = 0;
+        LocalDateTime now = LocalDateTime.now();
 
         for (V1Node node : nodes) {
             if (node.getMetadata() == null || node.getStatus() == null) continue;
             String name = node.getMetadata().getName();
-            
             if (processedKeys.contains(name)) continue;
 
             V1NodeSystemInfo nodeInfo = node.getStatus().getNodeInfo();
@@ -355,12 +349,20 @@ public class LogProcessingService {
                                                    existing.getContainerRuntimeVersion(), existing.getKubeletVersion(), 
                                                    existing.getCpuCapacity(), existing.getMemoryCapacity());
                 
-                if (!newHash.equals(existingHash)) {
-                    existing.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
-                    updatedCount++;
+                boolean dataChanged = !newHash.equals(existingHash);
+                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
+
+                if (dataChanged || needsHeartbeat) {
+                    existing.updateLastSeenAt(now);
+                    if (dataChanged) {
+                        existing.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
+                        updatedCount++;
+                    }
                 }
             } else {
-                toSave.add(new NodeProfile(tenant, name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory));
+                NodeProfile newNode = new NodeProfile(tenant, name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
+                newNode.updateLastSeenAt(now);
+                toSave.add(newNode);
             }
             processedKeys.add(name);
         }
@@ -377,8 +379,6 @@ public class LogProcessingService {
                 .map(n -> n.getMetadata().getName())
                 .collect(Collectors.toList());
 
-        namespaceProfileRepository.deleteByTenantAndNameNotIn(tenant, keys);
-
         List<NamespaceProfile> existingProfiles = namespaceProfileRepository.findByTenantAndNameIn(tenant, keys);
         Map<String, NamespaceProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(NamespaceProfile::getName, Function.identity()));
@@ -386,23 +386,30 @@ public class LogProcessingService {
         List<NamespaceProfile> toSave = new ArrayList<>();
         Set<String> processedKeys = new HashSet<>();
         int updatedCount = 0;
+        LocalDateTime now = LocalDateTime.now();
 
         for (V1Namespace ns : namespaces) {
             if (ns.getMetadata() == null || ns.getStatus() == null) continue;
             String name = ns.getMetadata().getName();
-            
             if (processedKeys.contains(name)) continue;
 
             String status = ns.getStatus().getPhase();
-
             NamespaceProfile existing = profileMap.get(name);
             if (existing != null) {
-                if (!Objects.equals(existing.getStatus(), status)) {
-                    existing.update(status);
-                    updatedCount++;
+                boolean dataChanged = !Objects.equals(existing.getStatus(), status);
+                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
+
+                if (dataChanged || needsHeartbeat) {
+                    existing.updateLastSeenAt(now);
+                    if (dataChanged) {
+                        existing.update(status);
+                        updatedCount++;
+                    }
                 }
             } else {
-                toSave.add(new NamespaceProfile(tenant, name, status));
+                NamespaceProfile newNs = new NamespaceProfile(tenant, name, status);
+                newNs.updateLastSeenAt(now);
+                toSave.add(newNs);
             }
             processedKeys.add(name);
         }
@@ -419,8 +426,6 @@ public class LogProcessingService {
                 .map(e -> e.getMetadata().getUid())
                 .collect(Collectors.toList());
 
-        eventProfileRepository.deleteByTenantAndUidNotIn(tenant, keys);
-
         List<EventProfile> existingProfiles = eventProfileRepository.findByTenantAndUidIn(tenant, keys);
         Map<String, EventProfile> profileMap = existingProfiles.stream()
                 .collect(Collectors.toMap(EventProfile::getUid, Function.identity()));
@@ -428,11 +433,11 @@ public class LogProcessingService {
         List<EventProfile> toSave = new ArrayList<>();
         Set<String> processedKeys = new HashSet<>();
         int updatedCount = 0;
+        LocalDateTime now = LocalDateTime.now();
 
         for (CoreV1Event event : events) {
             if (event.getMetadata() == null || event.getInvolvedObject() == null) continue;
             String uid = event.getMetadata().getUid();
-            
             if (processedKeys.contains(uid)) continue;
 
             Integer count = event.getCount();
@@ -444,16 +449,24 @@ public class LogProcessingService {
             EventProfile existing = profileMap.get(uid);
             if (existing != null) {
                 String existingHash = generateHash(existing.getCount(), existing.getLastTimestamp(), existing.getMessage());
-                if (!newHash.equals(existingHash)) {
-                    existing.update(count, lastTimestamp, message);
-                    updatedCount++;
+                boolean dataChanged = !newHash.equals(existingHash);
+                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
+
+                if (dataChanged || needsHeartbeat) {
+                    existing.updateLastSeenAt(now);
+                    if (dataChanged) {
+                        existing.update(count, lastTimestamp, message);
+                        updatedCount++;
+                    }
                 }
             } else {
-                toSave.add(new EventProfile(
+                EventProfile newEvent = new EventProfile(
                         tenant, event.getMetadata().getNamespace(), event.getInvolvedObject().getKind(),
                         event.getInvolvedObject().getName(), event.getReason(), message,
                         event.getType(), lastTimestamp, count, uid
-                ));
+                );
+                newEvent.updateLastSeenAt(now);
+                toSave.add(newEvent);
             }
             processedKeys.add(uid);
         }
@@ -471,18 +484,14 @@ public class LogProcessingService {
             keys.add(dep.getMetadata().getNamespace() + "/" + dep.getMetadata().getName());
         }
 
-        deploymentProfileRepository.deleteByTenantAndKeysNotIn(tenant, keys);
-
         List<DeploymentProfile> existingProfiles = deploymentProfileRepository.findAllByTenantAndKeys(tenant, keys);
         Map<String, DeploymentProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(
-                        d -> d.getNamespace() + "/" + d.getName(),
-                        Function.identity()
-                ));
+                .collect(Collectors.toMap(d -> d.getNamespace() + "/" + d.getName(), Function.identity()));
 
         List<DeploymentProfile> toSave = new ArrayList<>();
         Set<String> processedKeys = new HashSet<>();
         int updatedCount = 0;
+        LocalDateTime now = LocalDateTime.now();
 
         for (V1Deployment dep : deployments) {
             if (dep.getMetadata() == null || dep.getSpec() == null) continue;
@@ -503,12 +512,20 @@ public class LogProcessingService {
             if (existing != null) {
                 String existingHash = generateHash(existing.getReplicas(), existing.getAvailableReplicas(), 
                                                    existing.getStrategyType(), existing.getSelectorJson());
-                if (!newHash.equals(existingHash)) {
-                    existing.update(replicas, availableReplicas, strategy, selectorJson);
-                    updatedCount++;
+                boolean dataChanged = !newHash.equals(existingHash);
+                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
+
+                if (dataChanged || needsHeartbeat) {
+                    existing.updateLastSeenAt(now);
+                    if (dataChanged) {
+                        existing.update(replicas, availableReplicas, strategy, selectorJson);
+                        updatedCount++;
+                    }
                 }
             } else {
-                toSave.add(new DeploymentProfile(tenant, namespace, name, replicas, availableReplicas, strategy, selectorJson));
+                DeploymentProfile newDep = new DeploymentProfile(tenant, namespace, name, replicas, availableReplicas, strategy, selectorJson);
+                newDep.updateLastSeenAt(now);
+                toSave.add(newDep);
             }
             processedKeys.add(key);
         }
