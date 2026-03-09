@@ -3,7 +3,10 @@ package com.k8s.cnapp.server.ingestion.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.k8s.cnapp.server.auth.domain.Tenant;
+import com.k8s.cnapp.server.detection.event.ScanRequestEvent;
+import com.k8s.cnapp.server.detection.event.SecurityEventPublisher;
 import com.k8s.cnapp.server.ingestion.dto.ClusterSnapshot;
+import com.k8s.cnapp.server.policy.domain.Policy;
 import com.k8s.cnapp.server.profile.domain.*;
 import com.k8s.cnapp.server.profile.repository.*;
 import io.kubernetes.client.openapi.models.*;
@@ -34,504 +37,290 @@ public class LogProcessingService {
     private final NamespaceProfileRepository namespaceProfileRepository;
     private final EventProfileRepository eventProfileRepository;
     private final DeploymentProfileRepository deploymentProfileRepository;
+    private final org.springframework.context.ApplicationEventPublisher localEventPublisher;
 
     @Transactional
     public void processRawData(String rawData) {
         try {
             Tenant tenant = getCurrentTenant();
-            if (tenant == null) {
-                log.error("No authenticated tenant found. Skipping processing.");
-                return;
-            }
+            if (tenant == null) return;
 
             ClusterSnapshot snapshot = objectMapper.readValue(rawData, ClusterSnapshot.class);
-            logSummary(snapshot, tenant);
+            Map<Policy.ResourceType, List<Long>> updatedMap = new EnumMap<>(Policy.ResourceType.class);
 
-            processPods(snapshot.pods(), tenant);
-            processServices(snapshot.services(), tenant);
-            processNodes(snapshot.nodes(), tenant);
-            processNamespaces(snapshot.namespaces(), tenant);
-            processEvents(snapshot.events(), tenant);
-            processDeployments(snapshot.deployments(), tenant);
+            // 6대 핵심 자산 처리 및 변경 ID 수집
+            updatedMap.put(Policy.ResourceType.POD, processPods(snapshot.pods(), tenant));
+            updatedMap.put(Policy.ResourceType.SERVICE, processServices(snapshot.services(), tenant));
+            updatedMap.put(Policy.ResourceType.NODE, processNodes(snapshot.nodes(), tenant));
+            updatedMap.put(Policy.ResourceType.DEPLOYMENT, processDeployments(snapshot.deployments(), tenant));
+            updatedMap.put(Policy.ResourceType.NAMESPACE, processNamespaces(snapshot.namespaces(), tenant));
+            updatedMap.put(Policy.ResourceType.EVENT, processEvents(snapshot.events(), tenant));
 
-        } catch (JsonProcessingException e) {
-            log.error("Failed to parse raw data to ClusterSnapshot", e);
+            boolean hasChanges = updatedMap.entrySet().stream()
+                    .filter(e -> e.getKey() != Policy.ResourceType.EVENT && e.getKey() != Policy.ResourceType.NAMESPACE)
+                    .anyMatch(e -> !e.getValue().isEmpty());
+
+            if (hasChanges) {
+                log.info("Recording significant changes for tenant: {}. Triggering targeted scan.", tenant.getName());
+                localEventPublisher.publishEvent(ScanRequestEvent.builder()
+                        .tenantId(tenant.getId())
+                        .updatedResourceIds(updatedMap)
+                        .build());
+            }
+        } catch (Exception e) {
+            log.error("Log Ingestion failed", e);
+        }
+    }
+
+    private List<Long> processPods(List<V1Pod> pods, Tenant tenant) {
+        if (pods == null || pods.isEmpty()) return Collections.emptyList();
+        List<Long> changedIds = new ArrayList<>();
+        List<String> keys = pods.stream()
+                .filter(p -> p.getMetadata() != null && p.getSpec() != null && !p.getSpec().getContainers().isEmpty())
+                .map(p -> p.getMetadata().getNamespace() + "/" + p.getMetadata().getName() + "/" + p.getSpec().getContainers().get(0).getName())
+                .collect(Collectors.toList());
+
+        Map<String, PodProfile> profileMap = podProfileRepository.findAllByTenantAndKeys(tenant, keys).stream()
+                .collect(Collectors.toMap(p -> p.getAssetContext().getLookupKey(), Function.identity()));
+
+        LocalDateTime now = LocalDateTime.now();
+        List<PodProfile> toSave = new ArrayList<>();
+
+        for (V1Pod pod : pods) {
+            if (pod.getMetadata() == null || pod.getSpec() == null || pod.getSpec().getContainers().isEmpty()) continue;
+            V1Container container = pod.getSpec().getContainers().get(0);
+            String key = pod.getMetadata().getNamespace() + "/" + pod.getMetadata().getName() + "/" + container.getName();
+            
+            V1SecurityContext sc = container.getSecurityContext();
+            Boolean privileged = sc != null ? sc.getPrivileged() : null;
+            Long runAsUser = sc != null ? sc.getRunAsUser() : null;
+            Boolean allowPrivEsc = sc != null ? sc.getAllowPrivilegeEscalation() : null;
+            Boolean roRootFs = sc != null ? sc.getReadOnlyRootFilesystem() : null;
+            if (runAsUser == null && pod.getSpec().getSecurityContext() != null) runAsUser = pod.getSpec().getSecurityContext().getRunAsUser();
+
+            String newHash = generateHash(container.getImage(), privileged, runAsUser, allowPrivEsc, roRootFs);
+            PodProfile existing = profileMap.get(key);
+
+            if (existing != null) {
+                String existingHash = generateHash(existing.getAssetContext().getImage(), existing.getPrivileged(), existing.getRunAsUser(), existing.getAllowPrivilegeEscalation(), existing.getReadOnlyRootFilesystem());
+                boolean dataChanged = !newHash.equals(existingHash);
+                if (dataChanged || existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(1))) {
+                    existing.updateLastSeenAt(now);
+                    if (dataChanged) {
+                        existing.updateAssetContext(new AssetContext(pod.getMetadata().getNamespace(), pod.getMetadata().getName(), container.getName(), container.getImage(), extractDeploymentName(pod)));
+                        existing.updateSecurityContext(privileged, runAsUser, allowPrivEsc, roRootFs);
+                        changedIds.add(existing.getId());
+                    }
+                }
+            } else {
+                PodProfile newPod = new PodProfile(tenant, new AssetContext(pod.getMetadata().getNamespace(), pod.getMetadata().getName(), container.getName(), container.getImage(), extractDeploymentName(pod)), privileged, runAsUser, allowPrivEsc, roRootFs);
+                newPod.updateLastSeenAt(now);
+                toSave.add(newPod);
+            }
+        }
+        if (!toSave.isEmpty()) podProfileRepository.saveAll(toSave).forEach(p -> changedIds.add(p.getId()));
+        return changedIds;
+    }
+
+    private List<Long> processServices(List<V1Service> services, Tenant tenant) {
+        if (services == null || services.isEmpty()) return Collections.emptyList();
+        List<Long> changedIds = new ArrayList<>();
+        List<String> keys = services.stream().filter(s -> s.getMetadata() != null).map(s -> s.getMetadata().getNamespace() + "/" + s.getMetadata().getName()).toList();
+        Map<String, ServiceProfile> profileMap = serviceProfileRepository.findAllByTenantAndKeysWithPorts(tenant, keys).stream().collect(Collectors.toMap(s -> s.getNamespace() + "/" + s.getName(), Function.identity()));
+        LocalDateTime now = LocalDateTime.now();
+        List<ServiceProfile> toSave = new ArrayList<>();
+
+        for (V1Service service : services) {
+            if (service.getMetadata() == null || service.getSpec() == null) continue;
+            String key = service.getMetadata().getNamespace() + "/" + service.getMetadata().getName();
+            String type = service.getSpec().getType();
+            String cIp = service.getSpec().getClusterIP();
+            String eIps = service.getSpec().getExternalIPs() != null ? String.join(",", service.getSpec().getExternalIPs()) : null;
+            String portsStr = service.getSpec().getPorts() != null ? service.getSpec().getPorts().stream().map(p -> p.getProtocol() + ":" + p.getPort()).sorted().collect(Collectors.joining(",")) : "";
+
+            String newHash = generateHash(type, cIp, eIps, portsStr);
+            ServiceProfile existing = profileMap.get(key);
+
+            if (existing != null) {
+                String existingPorts = existing.getPorts().stream().map(p -> p.getProtocol() + ":" + p.getPort()).sorted().collect(Collectors.joining(","));
+                String existingHash = generateHash(existing.getType(), existing.getClusterIp(), existing.getExternalIps(), existingPorts);
+                boolean dataChanged = !newHash.equals(existingHash);
+                if (dataChanged || existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(1))) {
+                    existing.updateLastSeenAt(now);
+                    if (dataChanged) {
+                        existing.update(type, cIp, eIps);
+                        mergeServicePorts(existing, service.getSpec().getPorts());
+                        changedIds.add(existing.getId());
+                    }
+                }
+            } else {
+                ServiceProfile ns = new ServiceProfile(tenant, service.getMetadata().getNamespace(), service.getMetadata().getName(), type, cIp, eIps);
+                if (service.getSpec().getPorts() != null) service.getSpec().getPorts().forEach(p -> ns.addPort(new ServicePortProfile(p.getName(), p.getProtocol(), p.getPort(), p.getTargetPort() != null ? p.getTargetPort().toString() : null, p.getNodePort())));
+                ns.updateLastSeenAt(now);
+                toSave.add(ns);
+            }
+        }
+        if (!toSave.isEmpty()) serviceProfileRepository.saveAll(toSave).forEach(s -> changedIds.add(s.getId()));
+        return changedIds;
+    }
+
+    private List<Long> processNodes(List<V1Node> nodes, Tenant tenant) {
+        if (nodes == null || nodes.isEmpty()) return Collections.emptyList();
+        List<Long> changedIds = new ArrayList<>();
+        List<String> keys = nodes.stream().filter(n -> n.getMetadata() != null).map(n -> n.getMetadata().getName()).toList();
+        Map<String, NodeProfile> profileMap = nodeProfileRepository.findByTenantAndNameIn(tenant, keys).stream().collect(Collectors.toMap(NodeProfile::getName, Function.identity()));
+        LocalDateTime now = LocalDateTime.now();
+        List<NodeProfile> toSave = new ArrayList<>();
+
+        for (V1Node node : nodes) {
+            if (node.getMetadata() == null || node.getStatus() == null) continue;
+            V1NodeSystemInfo info = node.getStatus().getNodeInfo();
+            String cpu = node.getStatus().getCapacity() != null && node.getStatus().getCapacity().get("cpu") != null ? node.getStatus().getCapacity().get("cpu").toSuffixedString() : "unknown";
+            String mem = node.getStatus().getCapacity() != null && node.getStatus().getCapacity().get("memory") != null ? node.getStatus().getCapacity().get("memory").toSuffixedString() : "unknown";
+            String newHash = generateHash(info.getOsImage(), info.getKernelVersion(), info.getKubeletVersion(), cpu, mem);
+            NodeProfile existing = profileMap.get(node.getMetadata().getName());
+
+            if (existing != null) {
+                String existingHash = generateHash(existing.getOsImage(), existing.getKernelVersion(), existing.getKubeletVersion(), existing.getCpuCapacity(), existing.getMemoryCapacity());
+                boolean changed = !newHash.equals(existingHash);
+                if (changed || existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(1))) {
+                    existing.updateLastSeenAt(now);
+                    if (changed) {
+                        existing.update(info.getOsImage(), info.getKernelVersion(), info.getContainerRuntimeVersion(), info.getKubeletVersion(), cpu, mem);
+                        changedIds.add(existing.getId());
+                    }
+                }
+            } else {
+                NodeProfile nn = new NodeProfile(tenant, node.getMetadata().getName(), info.getOsImage(), info.getKernelVersion(), info.getContainerRuntimeVersion(), info.getKubeletVersion(), cpu, mem);
+                nn.updateLastSeenAt(now);
+                toSave.add(nn);
+            }
+        }
+        if (!toSave.isEmpty()) nodeProfileRepository.saveAll(toSave).forEach(n -> changedIds.add(n.getId()));
+        return changedIds;
+    }
+
+    private List<Long> processNamespaces(List<V1Namespace> namespaces, Tenant tenant) {
+        if (namespaces == null || namespaces.isEmpty()) return Collections.emptyList();
+        List<Long> changedIds = new ArrayList<>();
+        List<String> names = namespaces.stream().filter(n -> n.getMetadata() != null).map(n -> n.getMetadata().getName()).toList();
+        Map<String, NamespaceProfile> profileMap = namespaceProfileRepository.findByTenantAndNameIn(tenant, names).stream().collect(Collectors.toMap(NamespaceProfile::getName, Function.identity()));
+        LocalDateTime now = LocalDateTime.now();
+        List<NamespaceProfile> toSave = new ArrayList<>();
+
+        for (V1Namespace ns : namespaces) {
+            if (ns.getMetadata() == null || ns.getStatus() == null) continue;
+            String status = ns.getStatus().getPhase();
+            NamespaceProfile existing = profileMap.get(ns.getMetadata().getName());
+            if (existing != null) {
+                boolean changed = !Objects.equals(existing.getStatus(), status);
+                if (changed || existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(1))) {
+                    existing.updateLastSeenAt(now);
+                    if (changed) { existing.update(status); changedIds.add(existing.getId()); }
+                }
+            } else {
+                NamespaceProfile nns = new NamespaceProfile(tenant, ns.getMetadata().getName(), status);
+                nns.updateLastSeenAt(now);
+                toSave.add(nns);
+            }
+        }
+        if (!toSave.isEmpty()) namespaceProfileRepository.saveAll(toSave).forEach(n -> changedIds.add(n.getId()));
+        return changedIds;
+    }
+
+    private List<Long> processEvents(List<CoreV1Event> events, Tenant tenant) {
+        if (events == null || events.isEmpty()) return Collections.emptyList();
+        List<Long> changedIds = new ArrayList<>();
+        List<String> uids = events.stream().filter(e -> e.getMetadata() != null && e.getMetadata().getUid() != null).map(e -> e.getMetadata().getUid()).toList();
+        Map<String, EventProfile> profileMap = eventProfileRepository.findByTenantAndUidIn(tenant, uids).stream().collect(Collectors.toMap(EventProfile::getUid, Function.identity()));
+        LocalDateTime now = LocalDateTime.now();
+        List<EventProfile> toSave = new ArrayList<>();
+
+        for (CoreV1Event event : events) {
+            if (event.getMetadata() == null || event.getMetadata().getUid() == null || event.getInvolvedObject() == null) continue;
+            String uid = event.getMetadata().getUid();
+            String msg = event.getMessage();
+            String newHash = generateHash(event.getCount(), msg);
+            EventProfile existing = profileMap.get(uid);
+
+            if (existing != null) {
+                String existingHash = generateHash(existing.getCount(), existing.getMessage());
+                boolean changed = !newHash.equals(existingHash);
+                if (changed || existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(1))) {
+                    existing.updateLastSeenAt(now);
+                    if (changed) { existing.update(event.getCount(), event.getLastTimestamp(), msg); changedIds.add(existing.getId()); }
+                }
+            } else {
+                EventProfile ne = new EventProfile(tenant, event.getInvolvedObject().getNamespace(), event.getInvolvedObject().getKind(), event.getInvolvedObject().getName(), event.getReason(), msg, event.getType(), event.getLastTimestamp(), event.getCount(), uid);
+                ne.updateLastSeenAt(now);
+                toSave.add(ne);
+            }
+        }
+        if (!toSave.isEmpty()) eventProfileRepository.saveAll(toSave).forEach(e -> changedIds.add(e.getId()));
+        return changedIds;
+    }
+
+    private List<Long> processDeployments(List<V1Deployment> deployments, Tenant tenant) {
+        if (deployments == null || deployments.isEmpty()) return Collections.emptyList();
+        List<Long> changedIds = new ArrayList<>();
+        List<String> keys = deployments.stream().filter(d -> d.getMetadata() != null).map(d -> d.getMetadata().getNamespace() + "/" + d.getMetadata().getName()).toList();
+        Map<String, DeploymentProfile> profileMap = deploymentProfileRepository.findAllByTenantAndKeys(tenant, keys).stream().collect(Collectors.toMap(d -> d.getNamespace() + "/" + d.getName(), Function.identity()));
+        LocalDateTime now = LocalDateTime.now();
+        List<DeploymentProfile> toSave = new ArrayList<>();
+
+        for (V1Deployment dep : deployments) {
+            if (dep.getMetadata() == null || dep.getSpec() == null) continue;
+            Integer reps = dep.getSpec().getReplicas();
+            String strategy = dep.getSpec().getStrategy() != null ? dep.getSpec().getStrategy().getType() : null;
+            String newHash = generateHash(reps, strategy);
+            DeploymentProfile existing = profileMap.get(dep.getMetadata().getNamespace() + "/" + dep.getMetadata().getName());
+
+            if (existing != null) {
+                String existingHash = generateHash(existing.getReplicas(), existing.getStrategyType());
+                boolean changed = !newHash.equals(existingHash);
+                if (changed || existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(1))) {
+                    existing.updateLastSeenAt(now);
+                    if (changed) {
+                        existing.update(reps, dep.getStatus() != null ? dep.getStatus().getAvailableReplicas() : 0, strategy, toJson(dep.getSpec().getSelector()));
+                        changedIds.add(existing.getId());
+                    }
+                }
+            } else {
+                DeploymentProfile nd = new DeploymentProfile(tenant, dep.getMetadata().getNamespace(), dep.getMetadata().getName(), reps, dep.getStatus() != null ? dep.getStatus().getAvailableReplicas() : 0, strategy, toJson(dep.getSpec().getSelector()));
+                nd.updateLastSeenAt(now);
+                toSave.add(nd);
+            }
+        }
+        if (!toSave.isEmpty()) deploymentProfileRepository.saveAll(toSave).forEach(d -> changedIds.add(d.getId()));
+        return changedIds;
+    }
+
+    private void mergeServicePorts(ServiceProfile existing, List<V1ServicePort> newPorts) {
+        if (newPorts == null || newPorts.isEmpty()) { existing.getPorts().clear(); return; }
+        Set<String> newKeys = newPorts.stream().map(p -> p.getProtocol() + ":" + p.getPort()).collect(Collectors.toSet());
+        existing.getPorts().removeIf(p -> !newKeys.contains(p.getProtocol() + ":" + p.getPort()));
+        Map<String, ServicePortProfile> existingMap = existing.getPorts().stream().collect(Collectors.toMap(p -> p.getProtocol() + ":" + p.getPort(), Function.identity()));
+        for (V1ServicePort np : newPorts) {
+            if (!existingMap.containsKey(np.getProtocol() + ":" + np.getPort()))
+                existing.addPort(new ServicePortProfile(np.getName(), np.getProtocol(), np.getPort(), np.getTargetPort() != null ? np.getTargetPort().toString() : null, np.getNodePort()));
         }
     }
 
     private Tenant getCurrentTenant() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof Tenant) {
-            return (Tenant) authentication.getPrincipal();
-        }
-        return null;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return (auth != null && auth.getPrincipal() instanceof Tenant) ? (Tenant) auth.getPrincipal() : null;
     }
 
-    private void logSummary(ClusterSnapshot snapshot, Tenant tenant) {
-        log.info("[Ingest] Received Snapshot for Tenant: {} (Pods: {}, Services: {}, Nodes: {}, Namespaces: {}, Events: {}, Deployments: {})",
-                tenant.getName(),
-                snapshot.pods() != null ? snapshot.pods().size() : 0,
-                snapshot.services() != null ? snapshot.services().size() : 0,
-                snapshot.nodes() != null ? snapshot.nodes().size() : 0,
-                snapshot.namespaces() != null ? snapshot.namespaces().size() : 0,
-                snapshot.events() != null ? snapshot.events().size() : 0,
-                snapshot.deployments() != null ? snapshot.deployments().size() : 0
-        );
-    }
-
-    // --- Fingerprint (Hash) Helper ---
     private String generateHash(Object... fields) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             StringBuilder sb = new StringBuilder();
-            for (Object field : fields) {
-                sb.append(field == null ? "null" : field.toString()).append("|");
-            }
+            for (Object f : fields) sb.append(f == null ? "null" : f.toString()).append("|");
             byte[] hashBytes = digest.digest(sb.toString().getBytes());
             StringBuilder hexString = new StringBuilder();
-            for (byte b : hashBytes) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
+            for (byte b : hashBytes) { String hex = Integer.toHexString(0xff & b); if (hex.length() == 1) hexString.append('0'); hexString.append(hex); }
             return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 algorithm not found", e);
-        }
-    }
-
-    private void processPods(List<V1Pod> pods, Tenant tenant) {
-        if (pods == null || pods.isEmpty()) return;
-
-        List<String> keys = new ArrayList<>();
-        for (V1Pod pod : pods) {
-            if (pod.getMetadata() == null || pod.getSpec() == null) continue;
-            if (pod.getSpec().getContainers() == null || pod.getSpec().getContainers().isEmpty()) continue;
-            
-            String namespace = pod.getMetadata().getNamespace();
-            String podName = pod.getMetadata().getName();
-            V1Container container = pod.getSpec().getContainers().get(0);
-            String containerName = container.getName();
-            keys.add(namespace + "/" + podName + "/" + containerName);
-        }
-
-        List<PodProfile> existingProfiles = podProfileRepository.findAllByTenantAndKeys(tenant, keys);
-        Map<String, PodProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(
-                        p -> p.getAssetContext().getLookupKey(),
-                        Function.identity(),
-                        (existing, replacement) -> existing
-                ));
-
-        List<PodProfile> toSave = new ArrayList<>();
-        Set<String> processedKeys = new HashSet<>();
-        int updatedCount = 0;
-        LocalDateTime now = LocalDateTime.now();
-
-        for (V1Pod pod : pods) {
-            if (pod.getMetadata() == null || pod.getSpec() == null) continue;
-            String namespace = pod.getMetadata().getNamespace();
-            String podName = pod.getMetadata().getName();
-            
-            if (pod.getSpec().getContainers() == null || pod.getSpec().getContainers().isEmpty()) continue;
-
-            V1Container container = pod.getSpec().getContainers().get(0);
-            String containerName = container.getName();
-            String image = container.getImage();
-            String deploymentName = extractDeploymentName(pod);
-            String key = String.format("%s/%s/%s", namespace, podName, containerName);
-
-            if (processedKeys.contains(key)) continue;
-
-            Boolean privileged = null;
-            Long runAsUser = null;
-            Boolean allowPrivilegeEscalation = null;
-            Boolean readOnlyRootFilesystem = null;
-
-            V1SecurityContext securityContext = container.getSecurityContext();
-            if (securityContext != null) {
-                privileged = securityContext.getPrivileged();
-                runAsUser = securityContext.getRunAsUser();
-                allowPrivilegeEscalation = securityContext.getAllowPrivilegeEscalation();
-                readOnlyRootFilesystem = securityContext.getReadOnlyRootFilesystem();
-            }
-            if (runAsUser == null && pod.getSpec().getSecurityContext() != null) {
-                runAsUser = pod.getSpec().getSecurityContext().getRunAsUser();
-            }
-
-            String newHash = generateHash(image, privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem);
-
-            PodProfile existing = profileMap.get(key);
-            if (existing != null) {
-                String existingHash = generateHash(existing.getAssetContext().getImage(), existing.getPrivileged(), 
-                                                   existing.getRunAsUser(), existing.getAllowPrivilegeEscalation(), 
-                                                   existing.getReadOnlyRootFilesystem());
-                
-                boolean dataChanged = !newHash.equals(existingHash);
-                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
-
-                if (dataChanged || needsHeartbeat) {
-                    existing.updateLastSeenAt(now);
-                    if (dataChanged) {
-                        existing.updateAssetContext(new AssetContext(namespace, podName, containerName, image, deploymentName));
-                        existing.updateSecurityContext(privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem);
-                        updatedCount++;
-                    }
-                }
-            } else {
-                PodProfile newPod = new PodProfile(
-                        tenant,
-                        new AssetContext(namespace, podName, containerName, image, deploymentName),
-                        privileged, runAsUser, allowPrivilegeEscalation, readOnlyRootFilesystem
-                );
-                newPod.updateLastSeenAt(now);
-                toSave.add(newPod);
-            }
-            processedKeys.add(key);
-        }
-        
-        if (!toSave.isEmpty()) podProfileRepository.saveAll(toSave);
-        log.info("Pods - Total: {}, Inserted: {}, Updated: {}", pods.size(), toSave.size(), updatedCount);
-    }
-
-    private void processServices(List<V1Service> services, Tenant tenant) {
-        if (services == null || services.isEmpty()) return;
-
-        List<String> keys = new ArrayList<>();
-        for (V1Service service : services) {
-            if (service.getMetadata() == null) continue;
-            keys.add(service.getMetadata().getNamespace() + "/" + service.getMetadata().getName());
-        }
-
-        List<ServiceProfile> existingProfiles = serviceProfileRepository.findAllByTenantAndKeysWithPorts(tenant, keys);
-        Map<String, ServiceProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(
-                        s -> s.getNamespace() + "/" + s.getName(),
-                        Function.identity(),
-                        (existing, replacement) -> existing
-                ));
-
-        List<ServiceProfile> toSave = new ArrayList<>();
-        Set<String> processedKeys = new HashSet<>();
-        int updatedCount = 0;
-        LocalDateTime now = LocalDateTime.now();
-
-        for (V1Service service : services) {
-            if (service.getMetadata() == null || service.getSpec() == null) continue;
-            String namespace = service.getMetadata().getNamespace();
-            String name = service.getMetadata().getName();
-            String key = namespace + "/" + name;
-
-            if (processedKeys.contains(key)) continue;
-
-            String type = service.getSpec().getType();
-            String clusterIp = service.getSpec().getClusterIP();
-            String externalIps = service.getSpec().getExternalIPs() != null ? String.join(",", service.getSpec().getExternalIPs()) : null;
-
-            String portsString = "";
-            if (service.getSpec().getPorts() != null) {
-                portsString = service.getSpec().getPorts().stream()
-                        .map(p -> String.format("%s:%s:%s:%s", p.getProtocol(), p.getPort(), p.getTargetPort(), p.getNodePort()))
-                        .sorted()
-                        .collect(Collectors.joining(","));
-            }
-
-            String newHash = generateHash(type, clusterIp, externalIps, portsString);
-
-            ServiceProfile existing = profileMap.get(key);
-            if (existing != null) {
-                String existingPortsString = existing.getPorts().stream()
-                        .map(p -> String.format("%s:%s:%s:%s", p.getProtocol(), p.getPort(), p.getTargetPort(), p.getNodePort()))
-                        .sorted()
-                        .collect(Collectors.joining(","));
-                String existingHash = generateHash(existing.getType(), existing.getClusterIp(), existing.getExternalIps(), existingPortsString);
-
-                boolean dataChanged = !newHash.equals(existingHash);
-                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
-
-                if (dataChanged || needsHeartbeat) {
-                    existing.updateLastSeenAt(now);
-                    if (dataChanged) {
-                        existing.update(type, clusterIp, externalIps);
-                        mergeServicePorts(existing, service.getSpec().getPorts());
-                        updatedCount++;
-                    }
-                }
-            } else {
-                ServiceProfile newSp = new ServiceProfile(tenant, namespace, name, type, clusterIp, externalIps);
-                if (service.getSpec().getPorts() != null) {
-                    for (V1ServicePort port : service.getSpec().getPorts()) {
-                        String targetPort = port.getTargetPort() != null ? port.getTargetPort().toString() : null;
-                        newSp.addPort(new ServicePortProfile(port.getName(), port.getProtocol(), port.getPort(), targetPort, port.getNodePort()));
-                    }
-                }
-                newSp.updateLastSeenAt(now);
-                toSave.add(newSp);
-            }
-            processedKeys.add(key);
-        }
-        
-        if (!toSave.isEmpty()) serviceProfileRepository.saveAll(toSave);
-        log.info("Services - Total: {}, Inserted: {}, Updated: {}", services.size(), toSave.size(), updatedCount);
-    }
-
-    private void mergeServicePorts(ServiceProfile existing, List<V1ServicePort> newPorts) {
-        if (newPorts == null || newPorts.isEmpty()) {
-            existing.getPorts().clear();
-            return;
-        }
-
-        List<ServicePortProfile> existingPorts = existing.getPorts();
-        Set<String> newPortKeys = newPorts.stream()
-                .map(p -> p.getProtocol() + ":" + p.getPort())
-                .collect(Collectors.toSet());
-
-        existingPorts.removeIf(p -> !newPortKeys.contains(p.getProtocol() + ":" + p.getPort()));
-
-        Map<String, ServicePortProfile> existingPortMap = existingPorts.stream()
-                .collect(Collectors.toMap(
-                        p -> p.getProtocol() + ":" + p.getPort(),
-                        Function.identity()
-                ));
-
-        for (V1ServicePort newPort : newPorts) {
-            String portKey = newPort.getProtocol() + ":" + newPort.getPort();
-            String targetPortStr = newPort.getTargetPort() != null ? newPort.getTargetPort().toString() : null;
-            
-            ServicePortProfile existingPort = existingPortMap.get(portKey);
-            if (existingPort == null) {
-                existing.addPort(new ServicePortProfile(
-                        newPort.getName(), newPort.getProtocol(), newPort.getPort(), 
-                        targetPortStr, newPort.getNodePort()
-                ));
-            }
-        }
-    }
-
-    private void processNodes(List<V1Node> nodes, Tenant tenant) {
-        if (nodes == null || nodes.isEmpty()) return;
-
-        List<String> keys = nodes.stream()
-                .filter(n -> n.getMetadata() != null)
-                .map(n -> n.getMetadata().getName())
-                .collect(Collectors.toList());
-
-        List<NodeProfile> existingProfiles = nodeProfileRepository.findByTenantAndNameIn(tenant, keys);
-        Map<String, NodeProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(NodeProfile::getName, Function.identity()));
-
-        List<NodeProfile> toSave = new ArrayList<>();
-        Set<String> processedKeys = new HashSet<>();
-        int updatedCount = 0;
-        LocalDateTime now = LocalDateTime.now();
-
-        for (V1Node node : nodes) {
-            if (node.getMetadata() == null || node.getStatus() == null) continue;
-            String name = node.getMetadata().getName();
-            if (processedKeys.contains(name)) continue;
-
-            V1NodeSystemInfo nodeInfo = node.getStatus().getNodeInfo();
-            String osImage = nodeInfo.getOsImage();
-            String kernelVersion = nodeInfo.getKernelVersion();
-            String containerRuntimeVersion = nodeInfo.getContainerRuntimeVersion();
-            String kubeletVersion = nodeInfo.getKubeletVersion();
-            
-            String cpu = node.getStatus().getCapacity() != null && node.getStatus().getCapacity().get("cpu") != null 
-                    ? node.getStatus().getCapacity().get("cpu").toSuffixedString() : "unknown";
-            String memory = node.getStatus().getCapacity() != null && node.getStatus().getCapacity().get("memory") != null 
-                    ? node.getStatus().getCapacity().get("memory").toSuffixedString() : "unknown";
-
-            String newHash = generateHash(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
-
-            NodeProfile existing = profileMap.get(name);
-            if (existing != null) {
-                String existingHash = generateHash(existing.getOsImage(), existing.getKernelVersion(), 
-                                                   existing.getContainerRuntimeVersion(), existing.getKubeletVersion(), 
-                                                   existing.getCpuCapacity(), existing.getMemoryCapacity());
-                
-                boolean dataChanged = !newHash.equals(existingHash);
-                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
-
-                if (dataChanged || needsHeartbeat) {
-                    existing.updateLastSeenAt(now);
-                    if (dataChanged) {
-                        existing.update(osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
-                        updatedCount++;
-                    }
-                }
-            } else {
-                NodeProfile newNode = new NodeProfile(tenant, name, osImage, kernelVersion, containerRuntimeVersion, kubeletVersion, cpu, memory);
-                newNode.updateLastSeenAt(now);
-                toSave.add(newNode);
-            }
-            processedKeys.add(name);
-        }
-        
-        if (!toSave.isEmpty()) nodeProfileRepository.saveAll(toSave);
-        log.info("Nodes - Total: {}, Inserted: {}, Updated: {}", nodes.size(), toSave.size(), updatedCount);
-    }
-
-    private void processNamespaces(List<V1Namespace> namespaces, Tenant tenant) {
-        if (namespaces == null || namespaces.isEmpty()) return;
-
-        List<String> keys = namespaces.stream()
-                .filter(n -> n.getMetadata() != null)
-                .map(n -> n.getMetadata().getName())
-                .collect(Collectors.toList());
-
-        List<NamespaceProfile> existingProfiles = namespaceProfileRepository.findByTenantAndNameIn(tenant, keys);
-        Map<String, NamespaceProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(NamespaceProfile::getName, Function.identity()));
-
-        List<NamespaceProfile> toSave = new ArrayList<>();
-        Set<String> processedKeys = new HashSet<>();
-        int updatedCount = 0;
-        LocalDateTime now = LocalDateTime.now();
-
-        for (V1Namespace ns : namespaces) {
-            if (ns.getMetadata() == null || ns.getStatus() == null) continue;
-            String name = ns.getMetadata().getName();
-            if (processedKeys.contains(name)) continue;
-
-            String status = ns.getStatus().getPhase();
-            NamespaceProfile existing = profileMap.get(name);
-            if (existing != null) {
-                boolean dataChanged = !Objects.equals(existing.getStatus(), status);
-                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
-
-                if (dataChanged || needsHeartbeat) {
-                    existing.updateLastSeenAt(now);
-                    if (dataChanged) {
-                        existing.update(status);
-                        updatedCount++;
-                    }
-                }
-            } else {
-                NamespaceProfile newNs = new NamespaceProfile(tenant, name, status);
-                newNs.updateLastSeenAt(now);
-                toSave.add(newNs);
-            }
-            processedKeys.add(name);
-        }
-        
-        if (!toSave.isEmpty()) namespaceProfileRepository.saveAll(toSave);
-        log.info("Namespaces - Total: {}, Inserted: {}, Updated: {}", namespaces.size(), toSave.size(), updatedCount);
-    }
-
-    private void processEvents(List<CoreV1Event> events, Tenant tenant) {
-        if (events == null || events.isEmpty()) return;
-
-        List<String> keys = events.stream()
-                .filter(e -> e.getMetadata() != null)
-                .map(e -> e.getMetadata().getUid())
-                .collect(Collectors.toList());
-
-        List<EventProfile> existingProfiles = eventProfileRepository.findByTenantAndUidIn(tenant, keys);
-        Map<String, EventProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(EventProfile::getUid, Function.identity()));
-
-        List<EventProfile> toSave = new ArrayList<>();
-        Set<String> processedKeys = new HashSet<>();
-        int updatedCount = 0;
-        LocalDateTime now = LocalDateTime.now();
-
-        for (CoreV1Event event : events) {
-            if (event.getMetadata() == null || event.getInvolvedObject() == null) continue;
-            String uid = event.getMetadata().getUid();
-            if (processedKeys.contains(uid)) continue;
-
-            Integer count = event.getCount();
-            OffsetDateTime lastTimestamp = event.getLastTimestamp();
-            String message = event.getMessage();
-
-            String newHash = generateHash(count, lastTimestamp, message);
-
-            EventProfile existing = profileMap.get(uid);
-            if (existing != null) {
-                String existingHash = generateHash(existing.getCount(), existing.getLastTimestamp(), existing.getMessage());
-                boolean dataChanged = !newHash.equals(existingHash);
-                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
-
-                if (dataChanged || needsHeartbeat) {
-                    existing.updateLastSeenAt(now);
-                    if (dataChanged) {
-                        existing.update(count, lastTimestamp, message);
-                        updatedCount++;
-                    }
-                }
-            } else {
-                EventProfile newEvent = new EventProfile(
-                        tenant, event.getMetadata().getNamespace(), event.getInvolvedObject().getKind(),
-                        event.getInvolvedObject().getName(), event.getReason(), message,
-                        event.getType(), lastTimestamp, count, uid
-                );
-                newEvent.updateLastSeenAt(now);
-                toSave.add(newEvent);
-            }
-            processedKeys.add(uid);
-        }
-        
-        if (!toSave.isEmpty()) eventProfileRepository.saveAll(toSave);
-        log.info("Events - Total: {}, Inserted: {}, Updated: {}", events.size(), toSave.size(), updatedCount);
-    }
-    
-    private void processDeployments(List<V1Deployment> deployments, Tenant tenant) {
-        if (deployments == null || deployments.isEmpty()) return;
-
-        List<String> keys = new ArrayList<>();
-        for (V1Deployment dep : deployments) {
-            if (dep.getMetadata() == null) continue;
-            keys.add(dep.getMetadata().getNamespace() + "/" + dep.getMetadata().getName());
-        }
-
-        List<DeploymentProfile> existingProfiles = deploymentProfileRepository.findAllByTenantAndKeys(tenant, keys);
-        Map<String, DeploymentProfile> profileMap = existingProfiles.stream()
-                .collect(Collectors.toMap(d -> d.getNamespace() + "/" + d.getName(), Function.identity()));
-
-        List<DeploymentProfile> toSave = new ArrayList<>();
-        Set<String> processedKeys = new HashSet<>();
-        int updatedCount = 0;
-        LocalDateTime now = LocalDateTime.now();
-
-        for (V1Deployment dep : deployments) {
-            if (dep.getMetadata() == null || dep.getSpec() == null) continue;
-            String namespace = dep.getMetadata().getNamespace();
-            String name = dep.getMetadata().getName();
-            String key = namespace + "/" + name;
-
-            if (processedKeys.contains(key)) continue;
-
-            Integer replicas = dep.getSpec().getReplicas();
-            Integer availableReplicas = dep.getStatus() != null ? dep.getStatus().getAvailableReplicas() : 0;
-            String strategy = dep.getSpec().getStrategy() != null ? dep.getSpec().getStrategy().getType() : null;
-            String selectorJson = toJson(dep.getSpec().getSelector());
-
-            String newHash = generateHash(replicas, availableReplicas, strategy, selectorJson);
-
-            DeploymentProfile existing = profileMap.get(key);
-            if (existing != null) {
-                String existingHash = generateHash(existing.getReplicas(), existing.getAvailableReplicas(), 
-                                                   existing.getStrategyType(), existing.getSelectorJson());
-                boolean dataChanged = !newHash.equals(existingHash);
-                boolean needsHeartbeat = existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(3));
-
-                if (dataChanged || needsHeartbeat) {
-                    existing.updateLastSeenAt(now);
-                    if (dataChanged) {
-                        existing.update(replicas, availableReplicas, strategy, selectorJson);
-                        updatedCount++;
-                    }
-                }
-            } else {
-                DeploymentProfile newDep = new DeploymentProfile(tenant, namespace, name, replicas, availableReplicas, strategy, selectorJson);
-                newDep.updateLastSeenAt(now);
-                toSave.add(newDep);
-            }
-            processedKeys.add(key);
-        }
-        
-        if (!toSave.isEmpty()) deploymentProfileRepository.saveAll(toSave);
-        log.info("Deployments - Total: {}, Inserted: {}, Updated: {}", deployments.size(), toSave.size(), updatedCount);
+        } catch (NoSuchAlgorithmException e) { throw new RuntimeException(e); }
     }
 
     private String extractDeploymentName(V1Pod pod) {
@@ -549,11 +338,6 @@ public class LogProcessingService {
     }
 
     private String toJson(Object obj) {
-        try {
-            return objectMapper.writeValueAsString(obj);
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize object to JSON", e);
-            return null;
-        }
+        try { return objectMapper.writeValueAsString(obj); } catch (Exception e) { return null; }
     }
 }

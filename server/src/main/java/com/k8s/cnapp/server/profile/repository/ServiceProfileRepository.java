@@ -21,7 +21,10 @@ public interface ServiceProfileRepository extends JpaRepository<ServiceProfile, 
     @Query("SELECT DISTINCT s FROM ServiceProfile s LEFT JOIN FETCH s.ports WHERE s.tenant = :tenant AND CONCAT(s.namespace, '/', s.name) IN :keys")
     List<ServiceProfile> findAllByTenantAndKeysWithPorts(@Param("tenant") Tenant tenant, @Param("keys") List<String> keys);
 
-    // 스냅샷에 없는 데이터 삭제 (Tenant 격리)
+    @Query("SELECT s FROM ServiceProfile s LEFT JOIN FETCH s.ports WHERE s.id IN :ids")
+    List<ServiceProfile> findAllByIdWithPorts(@Param("ids") List<Long> ids);
+
+    // GC용: 일정 시간 동안 생존 보고가 없는 데이터 삭제
     @Modifying
     void deleteAllByLastSeenAtBefore(java.time.LocalDateTime time);
 }

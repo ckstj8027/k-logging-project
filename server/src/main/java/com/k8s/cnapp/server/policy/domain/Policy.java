@@ -61,7 +61,7 @@ public class Policy {
     }
 
     public enum ResourceType {
-        POD, SERVICE, DEPLOYMENT, NODE
+        POD, SERVICE, DEPLOYMENT, NODE, NAMESPACE, EVENT
     }
 
     public enum RuleType {

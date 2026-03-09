@@ -22,6 +22,18 @@ spring:
           order_inserts: true        # Insert 순서 최적화 (Batch 확률 높임)
           order_updates: true        # Update 순서 최적화
           batch_versioned_data: true # PostgreSQL Sequence 방식에서 배치 최적화 활성화
+
+  # RabbitMQ 설정 (K8s 서비스 환경변수 충돌 방지를 위해 이름 변경)
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        concurrency: 3            # 서버당 동시 처리 리스너 수 (3대 서버면 총 9개 병렬 처리)
+        max-concurrency: 10
+        prefetch: 1               # 한 번에 1개씩만 가져와서 공평하게 분배 (Fair Dispatch)
   # 배열(Timestamp) 대신 문자열로 출력
   jackson:
     serialization:

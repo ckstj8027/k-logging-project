@@ -22,14 +22,14 @@ public class ResourceCleanupService {
     private final EventProfileRepository eventProfileRepository;
 
     /**
-     * 5분마다 실행 (Garbage Collection)
-     * 최근 6분 동안 에이전트로부터 생존 보고(lastSeenAt)가 없는 리소스를 삭제합니다.
+     * 1분마다 실행 (Garbage Collection)
+     * 최근 2분 동안 에이전트로부터 생존 보고(lastSeenAt)가 없는 리소스를 삭제합니다.
      */
-    @Scheduled(fixedRate = 300000) // 5분 (300,000ms)
+    @Scheduled(fixedRate = 60000) // 1분 (60,000ms)
     @Transactional
     public void cleanupOldResources() {
-        LocalDateTime threshold = LocalDateTime.now().minusMinutes(6);
-        log.info("Starting Resource Cleanup (GC) for resources not seen since {}", threshold);
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(2);
+        log.info("Starting Extreme Resource Cleanup (GC) for resources not seen since {}", threshold);
 
         try {
             podProfileRepository.deleteAllByLastSeenAtBefore(threshold);
