@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface PolicyRepository extends JpaRepository<Policy, Long> {
+public interface PolicyRepository extends JpaRepository<Policy, Long>, PolicyRepositoryCustom {
     Optional<Policy> findByTenantAndResourceTypeAndRuleType(Tenant tenant, Policy.ResourceType resourceType, Policy.RuleType ruleType);
     List<Policy> findAllByTenant(Tenant tenant);
 }

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface AlertRepository extends JpaRepository<Alert, Long> {
+public interface AlertRepository extends JpaRepository<Alert, Long>, AlertRepositoryCustom {
     // 중복 Alert 방지를 위해 OPEN 상태인 동일 리소스의 Alert 조회
     List<Alert> findByResourceTypeAndResourceNameAndStatus(String resourceType, String resourceName, Alert.Status status);
 

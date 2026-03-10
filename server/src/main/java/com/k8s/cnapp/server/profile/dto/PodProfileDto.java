@@ -14,6 +14,11 @@ public class PodProfileDto {
     private String containerName;
     private String image;
     private String deploymentName;
+    private String status;
+    private String podIp;
+    private String nodeName;
+    private String cpuUsage;
+    private String memoryUsage;
     private Boolean privileged;
     private Long runAsUser;
     private Boolean runAsRoot;
@@ -33,6 +38,11 @@ public class PodProfileDto {
         this.containerName = podProfile.getAssetContext().getContainerName();
         this.image = podProfile.getAssetContext().getImage();
         this.deploymentName = podProfile.getAssetContext().getDeploymentName();
+        this.status = podProfile.getAssetContext().getStatus();
+        this.podIp = podProfile.getAssetContext().getPodIp();
+        this.nodeName = podProfile.getAssetContext().getNodeName();
+        this.cpuUsage = podProfile.getCpuUsage();
+        this.memoryUsage = podProfile.getMemoryUsage();
         this.privileged = podProfile.getPrivileged();
         this.runAsUser = podProfile.getRunAsUser();
         this.runAsRoot = podProfile.getRunAsRoot();

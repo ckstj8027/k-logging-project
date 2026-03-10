@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface EventProfileRepository extends JpaRepository<EventProfile, Long> {
+public interface EventProfileRepository extends JpaRepository<EventProfile, Long>, EventProfileRepositoryCustom {
 
     List<EventProfile> findAllByTenant(Tenant tenant);
 

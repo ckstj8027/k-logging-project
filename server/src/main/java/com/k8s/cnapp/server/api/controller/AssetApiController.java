@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.stream.Collectors;
@@ -26,49 +27,61 @@ public class AssetApiController {
     private final AuthService authService;
 
     @GetMapping("/pods")
-    public ResponseEntity<?> pods() {
+    public ResponseEntity<?> pods(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
         Tenant tenant = authService.getCurrentTenant();
-        return ResponseEntity.ok(podProfileRepository.findAllByTenant(tenant).stream()
+        return ResponseEntity.ok(podProfileRepository.findAllByTenantNoOffset(tenant, lastId, size).stream()
                 .map(PodProfileDto::new)
                 .collect(Collectors.toList()));
     }
 
     @GetMapping("/services")
-    public ResponseEntity<?> services() {
+    public ResponseEntity<?> services(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
         Tenant tenant = authService.getCurrentTenant();
-        return ResponseEntity.ok(serviceProfileRepository.findAllByTenantWithPorts(tenant).stream()
+        return ResponseEntity.ok(serviceProfileRepository.findAllByTenantNoOffset(tenant, lastId, size).stream()
                 .map(ServiceProfileDto::new)
                 .collect(Collectors.toList()));
     }
 
     @GetMapping("/nodes")
-    public ResponseEntity<?> nodes() {
+    public ResponseEntity<?> nodes(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
         Tenant tenant = authService.getCurrentTenant();
-        return ResponseEntity.ok(nodeProfileRepository.findAllByTenant(tenant).stream()
+        return ResponseEntity.ok(nodeProfileRepository.findAllByTenantNoOffset(tenant, lastId, size).stream()
                 .map(NodeProfileDto::new)
                 .collect(Collectors.toList()));
     }
 
     @GetMapping("/namespaces")
-    public ResponseEntity<?> namespaces() {
+    public ResponseEntity<?> namespaces(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
         Tenant tenant = authService.getCurrentTenant();
-        return ResponseEntity.ok(namespaceProfileRepository.findAllByTenant(tenant).stream()
+        return ResponseEntity.ok(namespaceProfileRepository.findAllByTenantNoOffset(tenant, lastId, size).stream()
                 .map(NamespaceProfileDto::new)
                 .collect(Collectors.toList()));
     }
 
     @GetMapping("/deployments")
-    public ResponseEntity<?> deployments() {
+    public ResponseEntity<?> deployments(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
         Tenant tenant = authService.getCurrentTenant();
-        return ResponseEntity.ok(deploymentProfileRepository.findAllByTenant(tenant).stream()
+        return ResponseEntity.ok(deploymentProfileRepository.findAllByTenantNoOffset(tenant, lastId, size).stream()
                 .map(DeploymentProfileDto::new)
                 .collect(Collectors.toList()));
     }
 
     @GetMapping("/events")
-    public ResponseEntity<?> events() {
+    public ResponseEntity<?> events(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
         Tenant tenant = authService.getCurrentTenant();
-        return ResponseEntity.ok(eventProfileRepository.findAllByTenant(tenant).stream()
+        return ResponseEntity.ok(eventProfileRepository.findAllByTenantNoOffset(tenant, lastId, size).stream()
                 .map(EventProfileDto::new)
                 .collect(Collectors.toList()));
     }

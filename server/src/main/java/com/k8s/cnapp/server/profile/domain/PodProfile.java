@@ -45,11 +45,18 @@ public class PodProfile extends BaseResourceProfile {
     @Column(name = "read_only_root_filesystem")
     private Boolean readOnlyRootFilesystem;
 
+    @Column(name = "cpu_usage")
+    private String cpuUsage;
+
+    @Column(name = "memory_usage")
+    private String memoryUsage;
+
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
     public PodProfile(Tenant tenant, AssetContext assetContext,
-                      Boolean privileged, Long runAsUser, Boolean allowPrivilegeEscalation, Boolean readOnlyRootFilesystem) {
+                      Boolean privileged, Long runAsUser, Boolean allowPrivilegeEscalation, Boolean readOnlyRootFilesystem,
+                      String cpuUsage, String memoryUsage) {
         super(tenant);
         this.assetContext = assetContext;
         this.privileged = privileged;
@@ -57,6 +64,8 @@ public class PodProfile extends BaseResourceProfile {
         this.runAsRoot = (runAsUser != null && runAsUser == 0);
         this.allowPrivilegeEscalation = allowPrivilegeEscalation;
         this.readOnlyRootFilesystem = readOnlyRootFilesystem;
+        this.cpuUsage = cpuUsage;
+        this.memoryUsage = memoryUsage;
     }
 
     public void updateAssetContext(AssetContext newAssetContext) {
@@ -69,5 +78,10 @@ public class PodProfile extends BaseResourceProfile {
         this.runAsRoot = (runAsUser != null && runAsUser == 0);
         this.allowPrivilegeEscalation = allowPrivilegeEscalation;
         this.readOnlyRootFilesystem = readOnlyRootFilesystem;
+    }
+
+    public void updateUsage(String cpuUsage, String memoryUsage) {
+        this.cpuUsage = cpuUsage;
+        this.memoryUsage = memoryUsage;
     }
 }

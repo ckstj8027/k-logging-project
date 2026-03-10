@@ -18,12 +18,15 @@ public class PolicyViewApiController {
 
     private final PolicyService policyService;
     private final AuthService authService;
+    private final com.k8s.cnapp.server.policy.repository.PolicyRepository policyRepository;
 
     @GetMapping
-    public ResponseEntity<?> policies() {
+    public ResponseEntity<?> policies(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
         Tenant tenant = authService.getCurrentTenant();
-        return ResponseEntity.ok(policyService.getAllPolicies().stream()
-                .filter(p -> p.getTenant().equals(tenant))
+        
+        return ResponseEntity.ok(policyRepository.findAllByTenantNoOffset(tenant, lastId, size).stream()
                 .map(PolicyDto::new)
                 .toList());
     }

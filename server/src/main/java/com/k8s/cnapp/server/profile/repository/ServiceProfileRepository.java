@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface ServiceProfileRepository extends JpaRepository<ServiceProfile, Long> {
+public interface ServiceProfileRepository extends JpaRepository<ServiceProfile, Long>, ServiceProfileRepositoryCustom {
 
     // N+1 문제 해결을 위한 Fetch Join (Tenant 격리)
     @Query("SELECT DISTINCT s FROM ServiceProfile s LEFT JOIN FETCH s.ports WHERE s.tenant = :tenant")

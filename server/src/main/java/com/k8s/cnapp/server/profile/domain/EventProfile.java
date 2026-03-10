@@ -25,7 +25,7 @@ public class EventProfile extends BaseResourceProfile {
     @SequenceGenerator(name = "event_profile_seq", sequenceName = "event_profile_seq", allocationSize = 50)
     private Long id;
 
-    @Column(nullable = false)
+    @Column
     private String namespace;
 
     @Column(name = "involved_object_kind")

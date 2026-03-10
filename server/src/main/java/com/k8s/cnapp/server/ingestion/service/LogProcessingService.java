@@ -98,22 +98,27 @@ public class LogProcessingService {
             Boolean roRootFs = sc != null ? sc.getReadOnlyRootFilesystem() : null;
             if (runAsUser == null && pod.getSpec().getSecurityContext() != null) runAsUser = pod.getSpec().getSecurityContext().getRunAsUser();
 
-            String newHash = generateHash(container.getImage(), privileged, runAsUser, allowPrivEsc, roRootFs);
+            // 실시간 상태 데이터 추출
+            String status = pod.getStatus() != null ? pod.getStatus().getPhase() : "Unknown";
+            String podIp = pod.getStatus() != null ? pod.getStatus().getPodIP() : null;
+            String nodeName = pod.getSpec().getNodeName();
+
+            String newHash = generateHash(container.getImage(), privileged, runAsUser, allowPrivEsc, roRootFs, status, podIp, nodeName);
             PodProfile existing = profileMap.get(key);
 
             if (existing != null) {
-                String existingHash = generateHash(existing.getAssetContext().getImage(), existing.getPrivileged(), existing.getRunAsUser(), existing.getAllowPrivilegeEscalation(), existing.getReadOnlyRootFilesystem());
+                String existingHash = generateHash(existing.getAssetContext().getImage(), existing.getPrivileged(), existing.getRunAsUser(), existing.getAllowPrivilegeEscalation(), existing.getReadOnlyRootFilesystem(), existing.getAssetContext().getStatus(), existing.getAssetContext().getPodIp(), existing.getAssetContext().getNodeName());
                 boolean dataChanged = !newHash.equals(existingHash);
                 if (dataChanged || existing.getLastSeenAt() == null || existing.getLastSeenAt().isBefore(now.minusMinutes(1))) {
                     existing.updateLastSeenAt(now);
                     if (dataChanged) {
-                        existing.updateAssetContext(new AssetContext(pod.getMetadata().getNamespace(), pod.getMetadata().getName(), container.getName(), container.getImage(), extractDeploymentName(pod)));
+                        existing.updateAssetContext(new AssetContext(pod.getMetadata().getNamespace(), pod.getMetadata().getName(), container.getName(), container.getImage(), extractDeploymentName(pod), status, podIp, nodeName));
                         existing.updateSecurityContext(privileged, runAsUser, allowPrivEsc, roRootFs);
                         changedIds.add(existing.getId());
                     }
                 }
             } else {
-                PodProfile newPod = new PodProfile(tenant, new AssetContext(pod.getMetadata().getNamespace(), pod.getMetadata().getName(), container.getName(), container.getImage(), extractDeploymentName(pod)), privileged, runAsUser, allowPrivEsc, roRootFs);
+                PodProfile newPod = new PodProfile(tenant, new AssetContext(pod.getMetadata().getNamespace(), pod.getMetadata().getName(), container.getName(), container.getImage(), extractDeploymentName(pod), status, podIp, nodeName), privileged, runAsUser, allowPrivEsc, roRootFs, "0m", "0Mi");
                 newPod.updateLastSeenAt(now);
                 toSave.add(newPod);
             }

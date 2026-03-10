@@ -26,13 +26,25 @@ public class AssetContext {
     @Column(name = "deployment_name")
     private String deploymentName; // Optional
 
+    @Column(name = "status")
+    private String status;
+
+    @Column(name = "pod_ip")
+    private String podIp;
+
+    @Column(name = "node_name")
+    private String nodeName;
+
     // 생성자
-    public AssetContext(String namespace, String podName, String containerName, String image, String deploymentName) {
+    public AssetContext(String namespace, String podName, String containerName, String image, String deploymentName, String status, String podIp, String nodeName) {
         this.namespace = namespace;
         this.podName = podName;
         this.containerName = containerName;
         this.image = image;
         this.deploymentName = deploymentName;
+        this.status = status;
+        this.podIp = podIp;
+        this.nodeName = nodeName;
     }
 
     // DB 조회용 고유 키 (유니크 제약 조건과 일치: namespace + podName + containerName)

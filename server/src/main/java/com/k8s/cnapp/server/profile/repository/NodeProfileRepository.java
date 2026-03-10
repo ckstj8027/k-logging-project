@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface NodeProfileRepository extends JpaRepository<NodeProfile, Long> {
+public interface NodeProfileRepository extends JpaRepository<NodeProfile, Long>, NodeProfileRepositoryCustom {
 
     List<NodeProfile> findAllByTenant(Tenant tenant);
 

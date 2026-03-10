@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface PodProfileRepository extends JpaRepository<PodProfile, Long> {
+public interface PodProfileRepository extends JpaRepository<PodProfile, Long>, PodProfileRepositoryCustom {
 
     List<PodProfile> findAllByTenant(Tenant tenant);
 

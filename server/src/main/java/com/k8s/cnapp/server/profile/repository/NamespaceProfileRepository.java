@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface NamespaceProfileRepository extends JpaRepository<NamespaceProfile, Long> {
+public interface NamespaceProfileRepository extends JpaRepository<NamespaceProfile, Long>, NamespaceProfileRepositoryCustom {
 
     List<NamespaceProfile> findAllByTenant(Tenant tenant);
 
