@@ -2,28 +2,27 @@ spring:
   application:
     name: cnapp-server
   datasource:
-
-
-
     url: ${DB_URL:jdbc:postgresql://localhost:5432/cnappdb}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         jdbc:
-          batch_size: 50           # 한 번에 50개씩 묶어서 실행
-          order_inserts: true        # Insert 순서 최적화 (Batch 확률 높임)
-          order_updates: true        # Update 순서 최적화
-          batch_versioned_data: true # PostgreSQL Sequence 방식에서 배치 최적화 활성화
+          batch_size: 50
+          order_inserts: true
+          order_updates: true
+          batch_versioned_data: true
 
-  # RabbitMQ 설정 (K8s 서비스 환경변수 충돌 방지를 위해 이름 변경)
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
@@ -31,10 +30,9 @@ spring:
     password: ${SPRING_RABBITMQ_PASSWORD:guest}
     listener:
       simple:
-        concurrency: 3            # 서버당 동시 처리 리스너 수 (3대 서버면 총 9개 병렬 처리)
+        concurrency: 3
         max-concurrency: 10
-        prefetch: 1               # 한 번에 1개씩만 가져와서 공평하게 분배 (Fair Dispatch)
-  # 배열(Timestamp) 대신 문자열로 출력
+        prefetch: 1
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -44,9 +42,9 @@ server:
 
 logging:
   level:
-    com.k8s.cnapp.server: DEBUG
+    root: INFO
+    com.k8s.cnapp.server: INFO
 
 jwt:
   secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
   expiration: 86400000 # 1 day
-

@@ -8,6 +8,13 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitConfig {
 
+    public static final String INGESTION_RAW_QUEUE = "ingestion.raw.queue";
+
+    @Bean
+    public Queue ingestionQueue() {
+        return new Queue(INGESTION_RAW_QUEUE, true);
+    }
+
     @Bean
     public Queue scanQueue() {
         return new Queue(RabbitSecurityEventPublisher.SCAN_QUEUE, true);

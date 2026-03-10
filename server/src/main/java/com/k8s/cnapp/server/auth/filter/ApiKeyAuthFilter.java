@@ -1,7 +1,7 @@
 package com.k8s.cnapp.server.auth.filter;
 
 import com.k8s.cnapp.server.auth.domain.Tenant;
-import com.k8s.cnapp.server.auth.repository.TenantRepository;
+import com.k8s.cnapp.server.auth.service.AuthService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,7 +22,7 @@ import java.util.Collections;
 @RequiredArgsConstructor
 public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
-    private final TenantRepository tenantRepository;
+    private final AuthService authService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -32,26 +32,17 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         boolean isIngestionApi = request.getRequestURI().startsWith("/api/v1/ingestion");
 
         if (apiKey != null) {
-            if (isIngestionApi) {
-                log.debug("API Key received: {}", apiKey);
-            }
-            Tenant tenant = tenantRepository.findByApiKey(apiKey).orElse(null);
-            if (tenant != null) {
-                if (isIngestionApi) {
-                    log.debug("Tenant authenticated: {}", tenant.getName());
-                }
-                // API Key가 유효하면 인증 객체 생성 (Principal에 Tenant 객체 저장)
+            try {
+                // 캐싱된 서비스 메서드 호출 (DB 조회 최소화)
+                Tenant tenant = authService.getTenantByApiKey(apiKey);
+                
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         tenant, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_AGENT")));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-            } else {
+            } catch (Exception e) {
                 if (isIngestionApi) {
                     log.warn("Invalid API Key: {}", apiKey);
                 }
-            }
-        } else {
-            if (isIngestionApi) {
-                log.warn("No API Key found in request header");
             }
         }
 

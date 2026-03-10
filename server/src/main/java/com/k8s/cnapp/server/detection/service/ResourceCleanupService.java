@@ -3,6 +3,7 @@ package com.k8s.cnapp.server.detection.service;
 import com.k8s.cnapp.server.profile.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class ResourceCleanupService {
      * 최근 2분 동안 에이전트로부터 생존 보고(lastSeenAt)가 없는 리소스를 삭제합니다.
      */
     @Scheduled(fixedRate = 60000) // 1분 (60,000ms)
+    @SchedulerLock(name = "ResourceCleanupService_cleanupOldResources", lockAtMostFor = "50s", lockAtLeastFor = "10s")
     @Transactional
     public void cleanupOldResources() {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(2);

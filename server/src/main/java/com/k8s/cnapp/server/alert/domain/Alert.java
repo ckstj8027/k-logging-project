@@ -12,7 +12,9 @@ import java.time.LocalDateTime;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "alerts")
+@Table(name = "alerts", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_alert_resource_message_status", columnNames = {"tenant_id", "resource_type", "resource_name", "message", "status"})
+})
 public class Alert {
 
     @Id

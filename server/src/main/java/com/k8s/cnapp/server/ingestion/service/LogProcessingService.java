@@ -40,9 +40,8 @@ public class LogProcessingService {
     private final org.springframework.context.ApplicationEventPublisher localEventPublisher;
 
     @Transactional
-    public void processRawData(String rawData) {
+    public void processRawData(Tenant tenant, String rawData) {
         try {
-            Tenant tenant = getCurrentTenant();
             if (tenant == null) return;
 
             ClusterSnapshot snapshot = objectMapper.readValue(rawData, ClusterSnapshot.class);

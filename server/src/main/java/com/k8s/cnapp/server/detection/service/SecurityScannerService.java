@@ -14,7 +14,9 @@ import com.k8s.cnapp.server.profile.domain.*;
 import com.k8s.cnapp.server.profile.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -104,6 +106,7 @@ public class SecurityScannerService {
     }
 
     @Scheduled(fixedRate = 3600000) // 정기 보장 스캔 (1시간 단위)
+    @SchedulerLock(name = "SecurityScannerService_scan", lockAtMostFor = "15m", lockAtLeastFor = "5m")
     @Transactional
     public void scan() {
         log.info("Starting periodic full safety scan...");
@@ -134,8 +137,12 @@ public class SecurityScannerService {
 
     private void saveNewAlerts(Tenant tenant, List<Alert> newAlerts) {
         if (!newAlerts.isEmpty()) {
-            alertRepository.saveAll(newAlerts);
-            log.info("Tenant {}: Generated {} new alerts.", tenant.getName(), newAlerts.size());
+            try {
+                alertRepository.saveAll(newAlerts);
+                log.info("Tenant {}: Generated {} new alerts.", tenant.getName(), newAlerts.size());
+            } catch (DataIntegrityViolationException e) {
+                log.info("Tenant {}: Duplicate alerts detected and skipped (Database Unique Constraint).", tenant.getName());
+            }
         }
     }
 
