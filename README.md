@@ -57,14 +57,15 @@ System Architecture
 * Data Flow: 수집(Blue Flow) → 분석 및 알림(Yellow Flow) → 데이터 정리(Green Flow)의 순환 구조를 가집니다.
 
 
-###
+---
 
    주요 구성 요소별 기능
+#
 
   Controller - 인터페이스 계층
   서버에는 각 목적에 따른 4개의 주요 컨트롤러가 존재합니다.
 
-  
+  #
 
 | 컨트롤러 명칭 | 주요 기능 | 상세 설명 |
 | :--- | :--- | :--- |
@@ -73,6 +74,7 @@ System Architecture
 | **AdminController** | 테넌트 관리 API | 신규 테넌트(고객사) 생성 및 전용 API Key 발급을 담당합니다. |
 | **Policy/Alert Controller** | 정책 및 알림 API | 보안 정책 설정 조회/수정 및 탐지된 알람 내역을 대시보드에 제공합니다. |
 
+---
   메시지 큐 (RabbitMQ) - 비동기 처리 계층
   시스템의 부하를 분산하고 실시간성을 확보하기 위해 사용됩니다.
 
@@ -80,7 +82,7 @@ System Architecture
    * ingestion.raw.queue (수집 큐): 에이전트로부터 들어온 원본 데이터를 일시 저장합니다. 분석 엔진은 이 큐에서 데이터를 꺼내어 순차적으로 처리합니다.
    * scan.queue (스캔 큐): 특정 리소스에 대해 정밀 스캔이 필요할 때 작업 명령을 전달하는 통로로 사용됩니다.
      
-
+---
    스케줄러 (Scheduler) - 자동화 계층
   ShedLock을 활용하여 분산 환경에서도 중복 없이 정기적인 작업을 수행합니다.
 
