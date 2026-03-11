@@ -56,6 +56,7 @@ System Architecture
 * Server (Management Platform): 수집된 데이터를 분석하고, 정책에 따라 보안 위협을 탐지하며 알람을 생성합니다.
 * Data Flow: 수집(Blue Flow) → 분석 및 알림(Yellow Flow) → 데이터 정리(Green Flow)의 순환 구조를 가집니다.
 
+<img width="2754" height="2988" alt="image" src="https://github.com/user-attachments/assets/28b89252-e5e0-4e98-96d3-f569ab986a08" />
 
 ---
 
