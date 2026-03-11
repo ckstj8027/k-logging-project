@@ -119,7 +119,7 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
   [Yellow Flow] 보안 분석 및 탐지 (정책 엔진)
    1. 소비: RawLogConsumer가 큐에서 데이터를 꺼냅니다.
    2. 분석: 전략 패턴(Strategy Pattern)으로 구현된 10여 가지 보안 정책을 적용합니다.
-       * 예: Pod이 Privileged 모드로 실행 중인가? 최신(latest) 태그를 사용하는가? 위험 포트가 열려 있는가? 등
+        Pod이 Privileged 모드로 실행 중인가? 최신(latest) 태그를 사용하는가? 위험 포트가 열려 있는가? 등
    3. 알림: 정책 위반 발견 시 Alert 객체를 생성하여 DB에 저장하고 대시보드에 노출합니다.
 
 
@@ -164,6 +164,7 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
 
 
 opt
+---
 ---
 
 ### 1. 동기식 수집 병목 및 DB 커넥션 고갈 해결 (Message Queue & Caching 도입)
