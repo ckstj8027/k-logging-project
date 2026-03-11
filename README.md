@@ -11,6 +11,28 @@ Memory Efficiency: 수만 개의 리소스를 처리할 때 메모리 부하를 
 Security Context Auditing: Pod 및 컨네이너의 보안 설정(Privileged, User ID 등) 자동 추출 및 모니터링.
 
 
+
+
+
+
+
+![5](https://github.com/user-attachments/assets/04427b83-bae5-495b-9233-15ee06f28d6e)
+
+#
+
+![6](https://github.com/user-attachments/assets/ba7cd5c1-b720-42e5-be5b-6dcd492f3a63)
+
+#
+
+
+![2](https://github.com/user-attachments/assets/9a9e98a2-0511-4452-8eed-791d893084fe)
+
+#
+
+![3](https://github.com/user-attachments/assets/6edde7b1-d226-4d25-9efa-695fda6f5756)
+
+#
+
 opt
 ----------------------------------------------------------------------------------------------------------------------------------
 Dirty Checking과 Batch Insert를 결합하여 DB I/O를 최소화
