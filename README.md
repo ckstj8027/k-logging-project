@@ -36,8 +36,9 @@ System Architecture
 에이전트와 서버 간의 데이터 흐름 및 동기화 아키텍처입니다.
 
 
+<img width="2814" height="1536" alt="ar" src="https://github.com/user-attachments/assets/63871201-aca7-48ae-bb4f-66a25b6814af" />
 
-<img width="3136" height="1344" alt="Gemini_Generated_Image_h4ta55h4ta55h4ta" src="https://github.com/user-attachments/assets/094f6487-7b19-431a-8512-926392d9ba60" />
+
 
 Agent: 각 클러스터에서 K8s API 서버로부터 리소스 정보를 수집하여 JSON 스냅샷 전송.
 
