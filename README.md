@@ -157,7 +157,7 @@ KUBERNETES_SERVICE_PORT
 2. 기본 경로 탐색: 라이브러리에 하드코딩된 SA 마운트 경로(`/var/run/secrets/...`)를 뒤져 `token`과 `ca.crt`를 메모리에 올립니다.
 3. API 구성 완료: 위 정보들을 조합하여 HTTPS을 형성하고 API 서버와 통신을 시작합니다.
 
-4 tls 헨드쉐이크 
+4 TLS 헨드쉐이크 
 
 이제 에이전트가 `https://10.96.0.1` (API 서버)에 접속할 때를 봅시다.
 
@@ -166,8 +166,8 @@ KUBERNETES_SERVICE_PORT
 - 서버의 증명: K8s API 서버는 에이전트에게 자신의 인증서을 보여줍니다.
 - (Cluster CA가 보증하는 API 서버의 공개키)
 - 검증: 에이전트는 마운트된 `ca.crt` 도장과 서버가 보여준 신분증의 도장을 대조합니다.
-    - **도장이 맞으면:** `ApiClient`가 "오케이, 진짜 서버네!" 하고 통신을 시작합니다.
-    - **도장이 틀리면:** Java에서 `SSLHandshakeException` 에러가 나면서 통신이 끊깁니다.
+    - 도장이 맞으면: `ApiClient`가 "오케이, 진짜 서버네!" 하고 통신을 시작합니다.
+    - 도장이 틀리면: Java에서 `SSLHandshakeException` 에러가 나면서 통신이 끊깁니다.
 
 5 실제 데이터 교환 
 
