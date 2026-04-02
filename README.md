@@ -58,6 +58,148 @@ System Architecture
 
 #
 
+---
+Agent
+
+---
+# Kubernetes Pod 내부에서 API 서버 접근 원리
+
+## 실행 전에 자동으로 주입되는 정보들
+
+Pod가 생성될 때 Kubernetes는 컨테이너가 API 서버와 통신할 수 있도록
+
+필요한 정보를 **자동으로 주입**합니다.
+
+이건 크게 두 가지로 나뉩니다:
+
+---
+
+## API 서버 위치 정보
+
+Kubelet은 다음을 기준으로 환경변수를 만듭니다:
+
+- 현재 네임스페이스
+- `default` 네임스페이스의 Service
+
+여기서 기본적으로 존재하는 Service:
+
+- `kubernetes.default.svc.cluster.local`
+
+이 Service를 기반으로 아래 규칙으로 변환됩니다:
+
+| 규칙 | 결과 |
+| --- | --- |
+| 서비스 이름 | kubernetes |
+| 대문자 변환 | KUBERNETES |
+| 접미사 추가 | `_SERVICE_HOST`, `_SERVICE_PORT` |
+
+👉 최종 환경변수:
+
+```
+KUBERNETES_SERVICE_HOST=10.96.0.1
+KUBERNETES_SERVICE_PORT=443
+```
+
+즉, **"어디로 요청할지" 알려주는 정보**
+
+---
+
+## 인증 정보: ServiceAccount 기반 (토큰 + CA)
+
+Pod에 ServiceAccount가 지정되면,
+
+Kubernetes의 Admission Controller가 Pod 정의를 자동으로 수정합니다.
+
+### 자동으로 추가되는 것
+
+### 1) 토큰 (인증)
+
+```
+/var/run/secrets/kubernetes.io/serviceaccount/token
+```
+
+### 2) CA 인증서 (TLS 검증)
+
+```
+/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+```
+
+### 3) 내부적으로 추가되는 설정
+
+- `volumes`
+- `volumeMounts`
+
+ Kubelet은 이 설정을 보고 실제로 컨테이너에 파일을 마운트합니다.
+
+---
+
+- 토큰 → "누가 요청하는가"
+- CA 인증서 → "서버가 진짜인지 검증"
+
+---
+
+## 최종적으로
+
+ **API 서버의 위치 + 인증 정보가 Pod 생성 시 자동으로 주입됩니다.**
+
+### 서버 정보 (환경변수)
+
+```
+KUBERNETES_SERVICE_HOST
+KUBERNETES_SERVICE_PORT
+```
+
+### 인증 정보 (파일)
+
+```
+/var/run/secrets/kubernetes.io/serviceaccount/token
+/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+```
+
+---
+
+---
+
+## 실제 통신
+
+컨테이너 내부에서 Java/Spring 애플리케이션이 시작되면, `io.kubernetes:client-java` 라이브러리는 다음과 같이 동작합니다.
+
+1. **환경변수 스캔:** 주입된 `HOST`와 `PORT`를 읽어 접속 URL을 생성합니다.
+2. **기본 경로 탐색:** 라이브러리에 하드코딩된 SA 마운트 경로(`/var/run/secrets/...`)를 뒤져 `token`과 `ca.crt`를 메모리에 올립니다.
+3. **API 구성 완료:** 위 정보들을 조합하여 HTTPS을 형성하고 API 서버와 통신을 시작합니다.
+
+4 tls 헨드쉐이크 
+
+이제 에이전트가 `https://10.96.0.1` (API 서버)에 접속할 때를 봅시다.
+
+- **에이전트의 준비물:** 에이전트는 전 세계 공통의 CA 리스트를 쓰지 않습니다. 대신, Kubelet이 Pod 안에 꽂아준 `/var/run/secrets/.../ca.crt`를 꺼내 듭니다. 이게 이 클러스터만의 전용 Root CA입니다.
+
+- **서버의 증명:** K8s API 서버는 에이전트에게 자신의 인증서을 보여줍니다.
+- (Cluster CA가 보증하는 API 서버의 공개키)
+- 
+- **검증:** 에이전트는 마운트된 `ca.crt` 도장과 서버가 보여준 신분증의 도장을 대조합니다.
+    - **도장이 맞으면:** `ApiClient`가 "오케이, 진짜 서버네!" 하고 통신을 시작합니다.
+    - **도장이 틀리면:** Java에서 `SSLHandshakeException` 에러가 나면서 통신이 끊깁니다.
+
+5 실제 데이터 교환 
+
+검증된 TLS 터널이 뚫린 후, 에이전트가 `리소스`를 가져오는 과정은 다음과 같은 흐름으로 진행됩니다.
+
+1. **Bearer 토큰 부착:** 에이전트(Java)는 마운트된 `token` 파일의 문자열을 읽어 HTTP 헤더에 담습니다.
+    - `Authorization: Bearer <JWT_TOKEN_CONTENT>`
+2. **API 호출 전송:** TLS로 암호화된 통로를 통해 API 서버에 요청을 던집니다.
+    - 예: `GET /api/v1/pods` (Pod 리스트 조회)
+3. **API 서버의 최종 승인:** API 서버는 토큰을 보고 신원을 확인한 후, **RBAC(RoleBinding)** 설정을 확인합니다.
+    - "이 토큰의 주인(`k8s-agent-sa`)이 전체 네임스페이스의 Pod를 볼 권한이 있나?"
+4. **데이터 응답:** 권한이 확인되면 API 서버는 JSON 데이터를 응답하고, 에이전트의 `io.kubernetes:client-java`는 이를 자바 객체(`V1PodList` 등)로 변환합니다.
+
+
+
+
+---
+Server
+---
+
 erd 구조 
 ---
 
