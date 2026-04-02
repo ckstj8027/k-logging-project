@@ -59,10 +59,10 @@ System Architecture
 #
 
 ---
-Agent
+# Agent
 
 ---
-# Kubernetes Pod 내부에서 API 서버 접근 원리
+## Kubernetes Pod 내부에서 API 서버 접근 원리
 
 ## 실행 전에 자동으로 주입되는 정보들
 
@@ -158,7 +158,6 @@ KUBERNETES_SERVICE_PORT
 
 ---
 
----
 
 ## 실제 통신
 
@@ -176,7 +175,6 @@ KUBERNETES_SERVICE_PORT
 
 - **서버의 증명:** K8s API 서버는 에이전트에게 자신의 인증서을 보여줍니다.
 - (Cluster CA가 보증하는 API 서버의 공개키)
-- 
 - **검증:** 에이전트는 마운트된 `ca.crt` 도장과 서버가 보여준 신분증의 도장을 대조합니다.
     - **도장이 맞으면:** `ApiClient`가 "오케이, 진짜 서버네!" 하고 통신을 시작합니다.
     - **도장이 틀리면:** Java에서 `SSLHandshakeException` 에러가 나면서 통신이 끊깁니다.
