@@ -60,10 +60,10 @@ System Architecture
 
 ---
 # Agent
-agent의 API 서버 접근 원리
+
 ---
 
-## 실행 전에 자동으로 주입되는 정보들
+## agent의 API 서버 접근 원리
 
 Pod가 생성될 때 Kubernetes는 컨테이너가 API 서버와 통신할 수 있도록
 
