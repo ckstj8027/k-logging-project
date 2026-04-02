@@ -182,10 +182,10 @@ KUBERNETES_SERVICE_PORT
 4. 데이터 응답: 권한이 확인되면 API 서버는 JSON 데이터를 응답하고, 에이전트의 `io.kubernetes:client-java`는 이를 자바 객체(`V1PodList` 등)로 변환합니다.
 
 6 서버로 전송 
-  - 1. K8s API 호출 → 받은 데이터 자바 객체(`V1PodList` 등)를 Java DTO로 변환.
-  - 2. 변환된 Java DTO들을 SnapshotBlockingQueue에 넣음.
-  - 3. 큐에서 Java 객체를 꺼내어 JSON 문자열로 직렬화(Jackson).
-  - 4. HTTP 헤더(X-API-KEY)와 함께 서버로 전송. 
+   1. K8s API 호출 → 받은 데이터 자바 객체(`V1PodList` 등)를 Java DTO로 변환.
+   2. 변환된 Java DTO들을 SnapshotBlockingQueue에 넣음.
+   3. 큐에서 Java 객체를 꺼내어 JSON 문자열로 직렬화(Jackson).
+   4. HTTP 헤더(X-API-KEY)와 함께 서버로 전송. 
 
 
 
