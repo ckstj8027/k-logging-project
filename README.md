@@ -111,26 +111,20 @@ Kubernetes의 Admission Controller가 Pod 정의를 자동으로 수정합니다
 
 ### 자동으로 추가되는 것
 
-### 1) 토큰 (인증)
+### 1) 토큰 (인증) → "누가 요청하는가"
 
 ```
 /var/run/secrets/kubernetes.io/serviceaccount/token
 ```
 
-### 2) CA 인증서 (TLS 검증)
+### 2) CA 인증서 (TLS 검증) → "서버가 진짜인지 검증"
 
 ```
 /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 ```
 
-### 3) 내부적으로 추가되는 설정
 
-volumes , volumes mount 를 통해 실제로 컨테이너에 인증서 및 토큰 파일을 마운트합니다.
-
----
-
-- 토큰 → "누가 요청하는가"
-- CA 인증서 → "서버가 진짜인지 검증"
+즉 volumes , volumes mount 를 통해 실제로 컨테이너에 인증서 및 토큰 파일을 마운트합니다.
 
 ---
 
