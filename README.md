@@ -159,7 +159,7 @@ KUBERNETES_SERVICE_PORT
 
 4 TLS 헨드쉐이크 
 
-이제 에이전트가 `https://10.96.0.1` (API 서버)에 접속할 때를 봅시다.
+- 이제 에이전트가 `https://10.96.0.1` (API 서버)에 접속할 때를 봅시다.
 
 - 에이전트의 준비물: 에이전트는 전 세계 공통의 CA 리스트를 쓰지 않습니다. 대신, Kubelet이 Pod 안에 꽂아준 `/var/run/secrets/.../ca.crt`를 꺼내 듭니다. 이게 이 클러스터만의 전용 Root CA입니다.
 
