@@ -125,10 +125,7 @@ Kubernetes의 Admission Controller가 Pod 정의를 자동으로 수정합니다
 
 ### 3) 내부적으로 추가되는 설정
 
-- `volumes`
-- `volumeMounts`
-
- Kubelet은 이 설정을 보고 실제로 컨테이너에 파일을 마운트합니다.
+volumes , volumes mount 를 통해 실제로 컨테이너에 인증서 및 토큰 파일을 마운트합니다.
 
 ---
 
