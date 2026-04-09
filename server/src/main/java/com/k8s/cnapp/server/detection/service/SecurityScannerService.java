@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -40,6 +42,7 @@ public class SecurityScannerService {
     private final PolicyService policyService;
     private final TenantRepository tenantRepository;
     private final PolicyEngine policyEngine;
+    private final Executor scanExecutor;
 
     /**
      * RabbitMQ 메시지 리스너: 실시간 정밀 스캔 (변경된 리소스만 타겟팅)
@@ -66,43 +69,68 @@ public class SecurityScannerService {
     private void performTargetedScan(Tenant tenant, Map<Policy.ResourceType, List<Long>> idMap) {
         log.info("Starting pinpoint scan for tenant: {} (Resource Types: {})", tenant.getName(), idMap.keySet());
         
-        Map<String, Alert> alertMap = loadOpenAlerts(tenant);
-        List<Alert> newAlerts = new ArrayList<>();
         SecurityPolicyContext context = new SecurityPolicyContext(tenant, policyService);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-        // 1. Pod 정밀 스캔
+        // 1. Pod 정밀 스캔 (비동기)
         if (idMap.containsKey(Policy.ResourceType.POD)) {
-            List<Long> ids = idMap.get(Policy.ResourceType.POD);
-            List<PodProfile> targets = podProfileRepository.findAllById(ids);
-            log.info("Loaded {} pods out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
-            evaluatePolicies(tenant, Policy.ResourceType.POD, targets, alertMap, newAlerts, context);
+            futures.add(CompletableFuture.runAsync(() -> {
+                List<Long> ids = idMap.get(Policy.ResourceType.POD);
+                List<PodProfile> targets = podProfileRepository.findAllById(ids);
+                log.info("Loaded {} pods out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
+                
+                List<Alert> newAlerts = new ArrayList<>();
+                Map<String, Alert> alertMap = loadOpenAlerts(tenant);
+                evaluatePolicies(tenant, Policy.ResourceType.POD, targets, alertMap, newAlerts, context);
+                saveNewAlerts(tenant, newAlerts);
+            }, scanExecutor));
         }
 
-        // 2. Service 정밀 스캔
+        // 2. Service 정밀 스캔 (비동기)
         if (idMap.containsKey(Policy.ResourceType.SERVICE)) {
-            List<Long> ids = idMap.get(Policy.ResourceType.SERVICE);
-            List<ServiceProfile> targets = serviceProfileRepository.findAllByIdWithPorts(ids);
-            log.info("Loaded {} services out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
-            evaluatePolicies(tenant, Policy.ResourceType.SERVICE, targets, alertMap, newAlerts, context);
+            futures.add(CompletableFuture.runAsync(() -> {
+                List<Long> ids = idMap.get(Policy.ResourceType.SERVICE);
+                List<ServiceProfile> targets = serviceProfileRepository.findAllByIdWithPorts(ids);
+                log.info("Loaded {} services out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
+                
+                List<Alert> newAlerts = new ArrayList<>();
+                Map<String, Alert> alertMap = loadOpenAlerts(tenant);
+                evaluatePolicies(tenant, Policy.ResourceType.SERVICE, targets, alertMap, newAlerts, context);
+                saveNewAlerts(tenant, newAlerts);
+            }, scanExecutor));
         }
 
-        // 3. Node 정밀 스캔
+        // 3. Node 정밀 스캔 (비동기)
         if (idMap.containsKey(Policy.ResourceType.NODE)) {
-            List<Long> ids = idMap.get(Policy.ResourceType.NODE);
-            List<NodeProfile> targets = nodeProfileRepository.findAllById(ids);
-            log.info("Loaded {} nodes out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
-            evaluatePolicies(tenant, Policy.ResourceType.NODE, targets, alertMap, newAlerts, context);
+            futures.add(CompletableFuture.runAsync(() -> {
+                List<Long> ids = idMap.get(Policy.ResourceType.NODE);
+                List<NodeProfile> targets = nodeProfileRepository.findAllById(ids);
+                log.info("Loaded {} nodes out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
+                
+                List<Alert> newAlerts = new ArrayList<>();
+                Map<String, Alert> alertMap = loadOpenAlerts(tenant);
+                evaluatePolicies(tenant, Policy.ResourceType.NODE, targets, alertMap, newAlerts, context);
+                saveNewAlerts(tenant, newAlerts);
+            }, scanExecutor));
         }
 
-        // 4. Deployment 정밀 스캔
+        // 4. Deployment 정밀 스캔 (비동기)
         if (idMap.containsKey(Policy.ResourceType.DEPLOYMENT)) {
-            List<Long> ids = idMap.get(Policy.ResourceType.DEPLOYMENT);
-            List<DeploymentProfile> targets = deploymentProfileRepository.findAllById(ids);
-            log.info("Loaded {} deployments out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
-            evaluatePolicies(tenant, Policy.ResourceType.DEPLOYMENT, targets, alertMap, newAlerts, context);
+            futures.add(CompletableFuture.runAsync(() -> {
+                List<Long> ids = idMap.get(Policy.ResourceType.DEPLOYMENT);
+                List<DeploymentProfile> targets = deploymentProfileRepository.findAllById(ids);
+                log.info("Loaded {} deployments out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
+                
+                List<Alert> newAlerts = new ArrayList<>();
+                Map<String, Alert> alertMap = loadOpenAlerts(tenant);
+                evaluatePolicies(tenant, Policy.ResourceType.DEPLOYMENT, targets, alertMap, newAlerts, context);
+                saveNewAlerts(tenant, newAlerts);
+            }, scanExecutor));
         }
 
-        saveNewAlerts(tenant, newAlerts);
+        // 모든 비동기 작업이 완료될 때까지 대기하여 MQ 메시지 처리 보장
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        log.info("Completed pinpoint scan for tenant: {}", tenant.getName());
     }
 
     @Scheduled(fixedRate = 3600000) // 정기 보장 스캔 (1시간 단위)
