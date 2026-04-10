@@ -8,10 +8,6 @@ spring:
 agent:
   sender:
     type: http # http 또는 kafka
-  snapshot:
-    schedule:
-      rate:
-        ms: 60000 # 60초마다 수집
 
 cnapp:
   server:

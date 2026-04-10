@@ -14,7 +14,6 @@ import com.k8s.cnapp.server.profile.domain.*;
 import com.k8s.cnapp.server.profile.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -72,69 +71,68 @@ public class SecurityScannerService {
         SecurityPolicyContext context = new SecurityPolicyContext(tenant, policyService);
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-        // 1. Pod 정밀 스캔 (비동기)
+        // 1. Pod 정밀 스캔
         if (idMap.containsKey(Policy.ResourceType.POD)) {
             futures.add(CompletableFuture.runAsync(() -> {
                 List<Long> ids = idMap.get(Policy.ResourceType.POD);
                 List<PodProfile> targets = podProfileRepository.findAllById(ids);
-                log.info("Loaded {} pods out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
-                
-                List<Alert> newAlerts = new ArrayList<>();
-                Map<String, Alert> alertMap = loadOpenAlerts(tenant);
-                evaluatePolicies(tenant, Policy.ResourceType.POD, targets, alertMap, newAlerts, context);
-                saveNewAlerts(tenant, newAlerts);
+                log.info("Loaded {} pods for pinpoint scan.", targets.size());
+                scanResources(tenant, Policy.ResourceType.POD, targets, context);
             }, scanExecutor));
         }
 
-        // 2. Service 정밀 스캔 (비동기)
+        // 2. Service 정밀 스캔
         if (idMap.containsKey(Policy.ResourceType.SERVICE)) {
             futures.add(CompletableFuture.runAsync(() -> {
                 List<Long> ids = idMap.get(Policy.ResourceType.SERVICE);
                 List<ServiceProfile> targets = serviceProfileRepository.findAllByIdWithPorts(ids);
-                log.info("Loaded {} services out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
-                
-                List<Alert> newAlerts = new ArrayList<>();
-                Map<String, Alert> alertMap = loadOpenAlerts(tenant);
-                evaluatePolicies(tenant, Policy.ResourceType.SERVICE, targets, alertMap, newAlerts, context);
-                saveNewAlerts(tenant, newAlerts);
+                log.info("Loaded {} services for pinpoint scan.", targets.size());
+                scanResources(tenant, Policy.ResourceType.SERVICE, targets, context);
             }, scanExecutor));
         }
 
-        // 3. Node 정밀 스캔 (비동기)
+        // 3. Node 정밀 스캔
         if (idMap.containsKey(Policy.ResourceType.NODE)) {
             futures.add(CompletableFuture.runAsync(() -> {
                 List<Long> ids = idMap.get(Policy.ResourceType.NODE);
                 List<NodeProfile> targets = nodeProfileRepository.findAllById(ids);
-                log.info("Loaded {} nodes out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
-                
-                List<Alert> newAlerts = new ArrayList<>();
-                Map<String, Alert> alertMap = loadOpenAlerts(tenant);
-                evaluatePolicies(tenant, Policy.ResourceType.NODE, targets, alertMap, newAlerts, context);
-                saveNewAlerts(tenant, newAlerts);
+                log.info("Loaded {} nodes for pinpoint scan.", targets.size());
+                scanResources(tenant, Policy.ResourceType.NODE, targets, context);
             }, scanExecutor));
         }
 
-        // 4. Deployment 정밀 스캔 (비동기)
+        // 4. Deployment 정밀 스캔
         if (idMap.containsKey(Policy.ResourceType.DEPLOYMENT)) {
             futures.add(CompletableFuture.runAsync(() -> {
                 List<Long> ids = idMap.get(Policy.ResourceType.DEPLOYMENT);
                 List<DeploymentProfile> targets = deploymentProfileRepository.findAllById(ids);
-                log.info("Loaded {} deployments out of {} requested IDs for pinpoint scan.", targets.size(), ids.size());
-                
-                List<Alert> newAlerts = new ArrayList<>();
-                Map<String, Alert> alertMap = loadOpenAlerts(tenant);
-                evaluatePolicies(tenant, Policy.ResourceType.DEPLOYMENT, targets, alertMap, newAlerts, context);
-                saveNewAlerts(tenant, newAlerts);
+                log.info("Loaded {} deployments for pinpoint scan.", targets.size());
+                scanResources(tenant, Policy.ResourceType.DEPLOYMENT, targets, context);
             }, scanExecutor));
         }
 
-        // 모든 비동기 작업이 완료될 때까지 대기하여 MQ 메시지 처리 보장
+        // 5. Namespace 정밀 스캔
+        if (idMap.containsKey(Policy.ResourceType.NAMESPACE)) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                List<Long> ids = idMap.get(Policy.ResourceType.NAMESPACE);
+                List<NamespaceProfile> targets = namespaceProfileRepository.findAllById(ids);
+                log.info("Loaded {} namespaces for pinpoint scan.", targets.size());
+                scanResources(tenant, Policy.ResourceType.NAMESPACE, targets, context);
+            }, scanExecutor));
+        }
+
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         log.info("Completed pinpoint scan for tenant: {}", tenant.getName());
     }
 
-    @Scheduled(fixedRate = 3600000) // 정기 보장 스캔 (1시간 단위)
-    @SchedulerLock(name = "SecurityScannerService_scan", lockAtMostFor = "15m", lockAtLeastFor = "5m")
+    private void scanResources(Tenant tenant, Policy.ResourceType type, List<?> targets, SecurityPolicyContext context) {
+        List<Alert> newAlerts = new ArrayList<>();
+        Map<String, Alert> alertMap = loadOpenAlerts(tenant);
+        evaluatePolicies(tenant, type, targets, alertMap, newAlerts, context);
+        saveNewAlerts(tenant, newAlerts);
+    }
+
+    @Scheduled(fixedRate = 3600000)
     @Transactional
     public void scan() {
         log.info("Starting periodic full safety scan...");
@@ -150,6 +148,7 @@ public class SecurityScannerService {
         evaluatePolicies(tenant, Policy.ResourceType.SERVICE, serviceProfileRepository.findAllByTenantWithPorts(tenant), alertMap, newAlerts, context);
         evaluatePolicies(tenant, Policy.ResourceType.DEPLOYMENT, deploymentProfileRepository.findAllByTenant(tenant), alertMap, newAlerts, context);
         evaluatePolicies(tenant, Policy.ResourceType.NODE, nodeProfileRepository.findAllByTenant(tenant), alertMap, newAlerts, context);
+        evaluatePolicies(tenant, Policy.ResourceType.NAMESPACE, namespaceProfileRepository.findAllByTenant(tenant), alertMap, newAlerts, context);
 
         saveNewAlerts(tenant, newAlerts);
     }
@@ -169,7 +168,7 @@ public class SecurityScannerService {
                 alertRepository.saveAll(newAlerts);
                 log.info("Tenant {}: Generated {} new alerts.", tenant.getName(), newAlerts.size());
             } catch (DataIntegrityViolationException e) {
-                log.info("Tenant {}: Duplicate alerts detected and skipped (Database Unique Constraint).", tenant.getName());
+                log.info("Tenant {}: Duplicate alerts detected and skipped.", tenant.getName());
             }
         }
     }
@@ -191,6 +190,7 @@ public class SecurityScannerService {
         if (resource instanceof ServiceProfile s) return s.getNamespace() + "/" + s.getName();
         if (resource instanceof DeploymentProfile d) return d.getNamespace() + "/" + d.getName();
         if (resource instanceof NodeProfile n) return n.getName();
+        if (resource instanceof NamespaceProfile ns) return ns.getName();
         return "Unknown";
     }
 

@@ -15,6 +15,7 @@ import java.util.Map;
 @Builder
 public class ScanRequestEvent implements Serializable {
     private final Long tenantId;
+    private final boolean targetedScan; // 명시적 필드 추가
     
     // ResourceType별로 변경된 ID 리스트를 담음
     // 예: POD -> [1, 2, 3], SERVICE -> [10, 11]
@@ -24,6 +25,6 @@ public class ScanRequestEvent implements Serializable {
      * 특정 리소스 ID들만 스캔할지 여부 확인
      */
     public boolean isTargetedScan() {
-        return updatedResourceIds != null && !updatedResourceIds.isEmpty();
+        return targetedScan && updatedResourceIds != null && !updatedResourceIds.isEmpty();
     }
 }

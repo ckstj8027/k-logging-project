@@ -22,14 +22,15 @@ public class DeploymentProfileRepositoryImpl implements DeploymentProfileReposit
                 .selectFrom(deploymentProfile)
                 .where(
                         deploymentProfile.tenant.eq(tenant),
-                        ltLastId(lastId)
+                        lastIdLt(lastId)
                 )
-                .orderBy(deploymentProfile.id.desc())
+                .orderBy(deploymentProfile.lastSeenAt.desc(), deploymentProfile.id.desc())
                 .limit(pageSize)
+
                 .fetch();
     }
 
-    private BooleanExpression ltLastId(Long lastId) {
+    private BooleanExpression lastIdLt(Long lastId) {
         if (lastId == null) {
             return null;
         }

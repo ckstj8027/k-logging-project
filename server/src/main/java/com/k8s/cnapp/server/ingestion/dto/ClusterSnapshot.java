@@ -2,6 +2,7 @@ package com.k8s.cnapp.server.ingestion.dto;
 
 import io.kubernetes.client.openapi.models.*;
 import java.util.List;
+import java.util.Map;
 
 public record ClusterSnapshot(
         List<V1Pod> pods,
@@ -14,5 +15,6 @@ public record ClusterSnapshot(
         List<V1DaemonSet> daemonSets,
         List<V1ReplicaSet> replicaSets,
         List<V1NetworkPolicy> networkPolicies,
-        List<V1Ingress> ingresses
+        List<V1Ingress> ingresses,
+        Map<String, List<String>> deletedResources // "Pod" -> ["namespace/pod1", ...]
 ) {}

@@ -22,14 +22,15 @@ public class NodeProfileRepositoryImpl implements NodeProfileRepositoryCustom {
                 .selectFrom(nodeProfile)
                 .where(
                         nodeProfile.tenant.eq(tenant),
-                        ltLastId(lastId)
+                        lastIdLt(lastId)
                 )
-                .orderBy(nodeProfile.id.desc())
+                .orderBy(nodeProfile.lastSeenAt.desc(), nodeProfile.id.desc())
                 .limit(pageSize)
+
                 .fetch();
     }
 
-    private BooleanExpression ltLastId(Long lastId) {
+    private BooleanExpression lastIdLt(Long lastId) {
         if (lastId == null) {
             return null;
         }

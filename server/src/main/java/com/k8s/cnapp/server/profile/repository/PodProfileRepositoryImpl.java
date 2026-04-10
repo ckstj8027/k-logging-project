@@ -22,14 +22,15 @@ public class PodProfileRepositoryImpl implements PodProfileRepositoryCustom {
                 .selectFrom(podProfile)
                 .where(
                         podProfile.tenant.eq(tenant),
-                        ltLastId(lastId)
+                        lastIdLt(lastId)
                 )
-                .orderBy(podProfile.id.desc())
+                .orderBy(podProfile.lastSeenAt.desc(), podProfile.id.desc()) // 최근 수집순 정렬
                 .limit(pageSize)
+
                 .fetch();
     }
 
-    private BooleanExpression ltLastId(Long lastId) {
+    private BooleanExpression lastIdLt(Long lastId) {
         if (lastId == null) {
             return null;
         }

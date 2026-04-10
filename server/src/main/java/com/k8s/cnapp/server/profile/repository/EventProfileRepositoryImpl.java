@@ -22,14 +22,15 @@ public class EventProfileRepositoryImpl implements EventProfileRepositoryCustom 
                 .selectFrom(eventProfile)
                 .where(
                         eventProfile.tenant.eq(tenant),
-                        ltLastId(lastId)
+                        lastIdLt(lastId)
                 )
-                .orderBy(eventProfile.id.desc())
+                .orderBy(eventProfile.lastSeenAt.desc(), eventProfile.id.desc())
                 .limit(pageSize)
+
                 .fetch();
     }
 
-    private BooleanExpression ltLastId(Long lastId) {
+    private BooleanExpression lastIdLt(Long lastId) {
         if (lastId == null) {
             return null;
         }

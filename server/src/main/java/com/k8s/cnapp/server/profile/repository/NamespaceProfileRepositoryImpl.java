@@ -22,14 +22,15 @@ public class NamespaceProfileRepositoryImpl implements NamespaceProfileRepositor
                 .selectFrom(namespaceProfile)
                 .where(
                         namespaceProfile.tenant.eq(tenant),
-                        ltLastId(lastId)
+                        lastIdLt(lastId)
                 )
-                .orderBy(namespaceProfile.id.desc())
+                .orderBy(namespaceProfile.lastSeenAt.desc(), namespaceProfile.id.desc())
                 .limit(pageSize)
+
                 .fetch();
     }
 
-    private BooleanExpression ltLastId(Long lastId) {
+    private BooleanExpression lastIdLt(Long lastId) {
         if (lastId == null) {
             return null;
         }

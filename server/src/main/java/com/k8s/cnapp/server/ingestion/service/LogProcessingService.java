@@ -37,7 +37,7 @@ public class LogProcessingService {
     private final NamespaceProfileRepository namespaceProfileRepository;
     private final EventProfileRepository eventProfileRepository;
     private final DeploymentProfileRepository deploymentProfileRepository;
-    private final org.springframework.context.ApplicationEventPublisher localEventPublisher;
+    private final SecurityEventPublisher securityEventPublisher; // MQ 퍼블리셔로 교체
 
     @Transactional
     public void processRawData(Tenant tenant, String rawData) {
@@ -47,7 +47,10 @@ public class LogProcessingService {
             ClusterSnapshot snapshot = objectMapper.readValue(rawData, ClusterSnapshot.class);
             Map<Policy.ResourceType, List<Long>> updatedMap = new EnumMap<>(Policy.ResourceType.class);
 
-            // 6대 핵심 자산 처리 및 변경 ID 수집
+            // 1. 삭제된 리소스 처리
+            processDeletions(snapshot.deletedResources(), tenant);
+
+            // 2. 6대 핵심 자산 처리 및 변경 ID 수집
             updatedMap.put(Policy.ResourceType.POD, processPods(snapshot.pods(), tenant));
             updatedMap.put(Policy.ResourceType.SERVICE, processServices(snapshot.services(), tenant));
             updatedMap.put(Policy.ResourceType.NODE, processNodes(snapshot.nodes(), tenant));
@@ -56,18 +59,87 @@ public class LogProcessingService {
             updatedMap.put(Policy.ResourceType.EVENT, processEvents(snapshot.events(), tenant));
 
             boolean hasChanges = updatedMap.entrySet().stream()
-                    .filter(e -> e.getKey() != Policy.ResourceType.EVENT && e.getKey() != Policy.ResourceType.NAMESPACE)
+                    .filter(e -> e.getKey() != Policy.ResourceType.EVENT) // NAMESPACE 제외 로직 제거
                     .anyMatch(e -> !e.getValue().isEmpty());
 
             if (hasChanges) {
-                log.info("Recording significant changes for tenant: {}. Triggering targeted scan.", tenant.getName());
-                localEventPublisher.publishEvent(ScanRequestEvent.builder()
+                log.info("Significant changes detected for tenant: {}. Publishing MQ scan request.", tenant.getName());
+                securityEventPublisher.publishScanRequest(ScanRequestEvent.builder()
                         .tenantId(tenant.getId())
                         .updatedResourceIds(updatedMap)
+                        .targetedScan(true)
                         .build());
             }
         } catch (Exception e) {
             log.error("Log Ingestion failed", e);
+        }
+    }
+
+    private void processDeletions(Map<String, List<String>> deletedResources, Tenant tenant) {
+        if (deletedResources == null || deletedResources.isEmpty()) return;
+
+        log.info("Processing explicit deletions for tenant: {}. Resource types to check: {}", tenant.getName(), deletedResources.keySet());
+
+        for (Map.Entry<String, List<String>> entry : deletedResources.entrySet()) {
+            String type = entry.getKey();
+            List<String> keys = entry.getValue();
+
+            if (keys == null || keys.isEmpty()) continue;
+
+            log.debug("Checking deletion for {} entries of type {} with keys: {}", keys.size(), type, keys);
+
+            try {
+                switch (type.toUpperCase()) {
+                    case "POD":
+                        List<PodProfile> pods = podProfileRepository.findAllByTenantAndKeys(tenant, keys);
+                        if (!pods.isEmpty()) {
+                            log.info("Found {} Pods to delete for tenant {}", pods.size(), tenant.getName());
+                            podProfileRepository.deleteAllInBatch(pods);
+                        } else {
+                            log.debug("No Pods found matching keys: {}", keys);
+                        }
+                        break;
+                    case "SERVICE":
+                        List<ServiceProfile> services = serviceProfileRepository.findAllByTenantAndKeysWithPorts(tenant, keys);
+                        if (!services.isEmpty()) {
+                            log.info("Found {} Services to delete for tenant {}", services.size(), tenant.getName());
+                            serviceProfileRepository.deleteAllInBatch(services);
+                        }
+                        break;
+                    case "NODE":
+                        List<NodeProfile> nodes = nodeProfileRepository.findByTenantAndNameIn(tenant, keys);
+                        if (!nodes.isEmpty()) {
+                            log.info("Found {} Nodes to delete for tenant {}", nodes.size(), tenant.getName());
+                            nodeProfileRepository.deleteAllInBatch(nodes);
+                        }
+                        break;
+                    case "DEPLOYMENT":
+                        List<DeploymentProfile> deployments = deploymentProfileRepository.findAllByTenantAndKeys(tenant, keys);
+                        if (!deployments.isEmpty()) {
+                            log.info("Found {} Deployments to delete for tenant {}", deployments.size(), tenant.getName());
+                            deploymentProfileRepository.deleteAllInBatch(deployments);
+                        }
+                        break;
+                    case "NAMESPACE":
+                        List<NamespaceProfile> namespaces = namespaceProfileRepository.findByTenantAndNameIn(tenant, keys);
+                        if (!namespaces.isEmpty()) {
+                            log.info("Found {} Namespaces to delete for tenant {}", namespaces.size(), tenant.getName());
+                            namespaceProfileRepository.deleteAllInBatch(namespaces);
+                        }
+                        break;
+                    case "EVENT":
+                        List<EventProfile> events = eventProfileRepository.findByTenantAndUidIn(tenant, keys);
+                        if (!events.isEmpty()) {
+                            log.info("Found {} Events to delete for tenant {}", events.size(), tenant.getName());
+                            eventProfileRepository.deleteAllInBatch(events);
+                        }
+                        break;
+                    default:
+                        log.warn("Resource type '{}' is not explicitly handled for deletion or has no storage mapping.", type);
+                }
+            } catch (Exception e) {
+                log.error("Error during deletion process for type {}: {}", type, e.getMessage(), e);
+            }
         }
     }
 

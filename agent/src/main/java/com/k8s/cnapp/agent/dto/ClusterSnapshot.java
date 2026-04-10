@@ -2,6 +2,7 @@ package com.k8s.cnapp.agent.dto;
 
 import io.kubernetes.client.openapi.models.*;
 import java.util.List;
+import java.util.Map;
 
 public record ClusterSnapshot(
         // 1. Core 리소스
@@ -19,5 +20,8 @@ public record ClusterSnapshot(
 
         // 3. Networking 리소스
         List<V1NetworkPolicy> networkPolicies,
-        List<V1Ingress> ingresses
+        List<V1Ingress> ingresses,
+
+        // 4. 삭제 리소스 (Watcher 전 전용)
+        Map<String, List<String>> deletedResources
 ) {}

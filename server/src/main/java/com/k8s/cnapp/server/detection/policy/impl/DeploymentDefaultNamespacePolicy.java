@@ -5,15 +5,18 @@ import com.k8s.cnapp.server.detection.policy.PolicyEvaluationResult;
 import com.k8s.cnapp.server.detection.policy.SecurityPolicy;
 import com.k8s.cnapp.server.detection.policy.SecurityPolicyContext;
 import com.k8s.cnapp.server.policy.domain.Policy;
-import com.k8s.cnapp.server.profile.domain.PodProfile;
+import com.k8s.cnapp.server.profile.domain.DeploymentProfile;
 import org.springframework.stereotype.Component;
 
+/**
+ * Deployment 레벨에서의 네임스페이스 보안 정책
+ */
 @Component
-public class PodDefaultNamespacePolicy implements SecurityPolicy<PodProfile> {
+public class DeploymentDefaultNamespacePolicy implements SecurityPolicy<DeploymentProfile> {
 
     @Override
     public Policy.ResourceType getSupportedType() {
-        return Policy.ResourceType.POD;
+        return Policy.ResourceType.DEPLOYMENT;
     }
 
     @Override
@@ -22,14 +25,13 @@ public class PodDefaultNamespacePolicy implements SecurityPolicy<PodProfile> {
     }
 
     @Override
-    public PolicyEvaluationResult evaluate(PodProfile pod, SecurityPolicyContext context) {
+    public PolicyEvaluationResult evaluate(DeploymentProfile deployment, SecurityPolicyContext context) {
         if (context.isPolicyEnabled(getSupportedType(), getRuleType()) && 
-            "default".equalsIgnoreCase(pod.getAssetContext().getNamespace())) {
+            "default".equalsIgnoreCase(deployment.getNamespace())) {
             
-            String podName = pod.getAssetContext().getPodName();
             return PolicyEvaluationResult.failure(Alert.Severity.LOW, 
-                String.format("Security Best Practice Violation: Pod '%s' is deployed in the 'default' namespace. " +
-                "Workloads should be isolated in custom namespaces to improve security boundaries.", podName));
+                String.format("Architectural Risk: Deployment '%s' is configured for the 'default' namespace. " +
+                "It is highly recommended to use logical isolation via custom namespaces.", deployment.getName()));
         }
         return PolicyEvaluationResult.success();
     }

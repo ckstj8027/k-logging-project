@@ -32,6 +32,7 @@ public class PolicyService {
         createIfNotExists(tenant, Policy.ResourceType.POD, Policy.RuleType.PRIVILEGED_DENY, "true", "Disallow privileged containers");
         createIfNotExists(tenant, Policy.ResourceType.POD, Policy.RuleType.RUN_AS_ROOT_DENY, "true", "Disallow running as root");
         createIfNotExists(tenant, Policy.ResourceType.POD, Policy.RuleType.IMAGE_LATEST_TAG_DENY, "true", "Disallow 'latest' image tag");
+        createIfNotExists(tenant, Policy.ResourceType.POD, Policy.RuleType.NAMESPACE_DEFAULT_DENY, "true", "Warn when workloads are deployed in the 'default' namespace");
         
         // Service Policies
         createIfNotExists(tenant, Policy.ResourceType.SERVICE, Policy.RuleType.PORT_BLACKLIST, "21,22,23,25,53,110,143,389,445,3306,3389,5432,6379,27017", "Blacklisted ports for external exposure");
@@ -40,6 +41,7 @@ public class PolicyService {
         // Deployment Policies
         createIfNotExists(tenant, Policy.ResourceType.DEPLOYMENT, Policy.RuleType.REPLICA_MAX_LIMIT, "10", "Max replica count warning");
         createIfNotExists(tenant, Policy.ResourceType.DEPLOYMENT, Policy.RuleType.REPLICA_MIN_LIMIT, "1", "Min replica count warning (0 means down)");
+        createIfNotExists(tenant, Policy.ResourceType.DEPLOYMENT, Policy.RuleType.NAMESPACE_DEFAULT_DENY, "true", "Warn when deployments are targetting the 'default' namespace");
 
         // Node Policies
         createIfNotExists(tenant, Policy.ResourceType.NODE, Policy.RuleType.CPU_LIMIT_CORES, "8", "Node CPU capacity limit (cores)");

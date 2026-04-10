@@ -24,7 +24,7 @@ public class AlertRepositoryImpl implements AlertRepositoryCustom {
                         alert.tenant.eq(tenant),
                         ltLastId(lastId)
                 )
-                .orderBy(alert.id.desc()) // 최신순 정렬
+                .orderBy(alert.createdAt.desc(), alert.id.desc()) // 발생 시간 기준 최신순 정렬
                 .limit(pageSize)
                 .fetch();
     }

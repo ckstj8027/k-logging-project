@@ -22,14 +22,15 @@ public class ServiceProfileRepositoryImpl implements ServiceProfileRepositoryCus
                 .selectFrom(serviceProfile)
                 .where(
                         serviceProfile.tenant.eq(tenant),
-                        ltLastId(lastId)
+                        lastIdLt(lastId)
                 )
-                .orderBy(serviceProfile.id.desc())
+                .orderBy(serviceProfile.lastSeenAt.desc(), serviceProfile.id.desc())
                 .limit(pageSize)
+
                 .fetch();
     }
 
-    private BooleanExpression ltLastId(Long lastId) {
+    private BooleanExpression lastIdLt(Long lastId) {
         if (lastId == null) {
             return null;
         }
