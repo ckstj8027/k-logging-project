@@ -58,7 +58,64 @@ System Architecture
 * AI Server: 수집된 실시간 자산 데이터와 보안 지식베이스(RAG)를 융합 분석하여, 탐지된 위협에 대한 지능형 조치 가이드를 제공하는 보안 의사결정 지원 엔진
 
 
+
 #
+---
+# AI server
+
+---
+
+AI 서버는 쿠버네티스 보안 실시간 데이터(PostgreSQL)와 정적 보안 지식(RAG)을 융합하여 분석 결과를 제공하는 지능형 보안 에이전트입니다.
+
+- Framework: FastAPI
+- Orchestration: LangGraph
+- Persistence Layer: Hybrid Strategy (Redis + PostgreSQL)
+
+---
+
+LangGraph 기반 워크플로우 설계
+1회성 답변(Chain)이 아닌, 도구 실행 결과에 따른 재시도 및 검증(Loop)이 가능한 그래프 구조를 채택했습니다.
+
+그래프 노드 구조
+
+1. Router : 사용자의 질문 의도를 분석하여 db_tool 또는 rag_tool 호출을 결정합니다.
+2. Tools: 실시간 K8s 자산 데이터(SQL) 또는 보안 지식베이스(RAG)를 조회합니다.
+3. Validator (Self-Correction): LLM이 생성한 SQL의 문법 오류나 테넌트 필터링 누락을 감지합니다. 오류 발견 시 에러 메시지를 포함하여 다시 Agent 노드로 회귀시켜 스스로 쿼리를 수정(Self-healing)하게 유도합니다.
+4. Generator: 최종 수집된 정보를 보안 컨설턴트 톤의 한국어로 요약하여 응답합니다.
+
+---
+
+ 데이터 저장 및 맥락 유지 전략 (Persistence)
+Stateless한 JWT 환경에서 대화의 맥락(Context)을 유지하기 위해 이중 저장소 사용.
+
+ Redis: 세션 캐싱 및 실시간 상태 관리
+
+- 현재 진행 중인 대화의 중간 상태(State)와 사용자 정보(User/Tenant Context)를 초고속으로 캐싱합니다.
+- LangGraph의 상태 전파는 빈번한 읽기/쓰기가 발생하므로, 지연 시간을 최소화하기 위해 인메모리 저장소인 Redis를 선택했습니다.
+
+PostgreSQL: PostgresCheckpointer 기반 히스토리 영구 보존
+
+- 대화가 종료된 후에도 thread_id를 기준으로 과거 모든 대화 이력을 보존합니다.
+- LangGraph의 PostgresCheckpointer를 활용해, 공유 DB 내 ai_checkpoints 테이블에 스냅샷을 저장
+
+실시간 속도는 Redis가, 데이터의 신뢰성과 영구 보존은 PostgreSQL이 담당하도록 책임을 분리.
+
+---
+
+고도화된 RAG 및 인덱싱 전략
+청크 전략
+
+- 글자 수로 문서를 자를 경우, 취약점의 '설명'과 '조치 방법'이 서로 다른 청크로 나뉘어 검색 품질이 저하되는 문제 발생.
+- security_kb.txt 내에 --- 구분자를 도입. indexer.py에서 논리적 블록 단위로 문서를 분할하여 하나의 보안 지식이 온전한 맥락(Context)을 유지한 채 VectorDB에 저장되도록 구현.
+
+---
+
+ 테넌트 간 데이터 격리
+
+- 시스템 프롬프트 주입: 에이전트에게 "다중 테넌트 환경의 컨설턴트임"을 지속적으로 인지시켜, 쿼리 생성 시 스스로 필터링을 걸도록 제한.
+- tenant_id = {request_tenant_id} 필터가 SQL에 포함되어 있지 않으면 실행을 즉시 차단하고 에러를 반환
+
+
 
 ---
 # Agent
