@@ -107,7 +107,7 @@ PostgreSQL: PostgresCheckpointer 기반 히스토리 영구 보존
 청크 전략
 
 - 글자 수로 문서를 자를 경우, 취약점의 '설명'과 '조치 방법'이 서로 다른 청크로 나뉘어 검색 품질이 저하되는 문제 발생.
-- security_kb.txt 내에 --- 구분자를 도입. indexer.py에서 논리적 블록 단위로 문서를 분할하여 하나의 보안 지식이 온전한 맥락(Context)을 유지한 채 VectorDB에 저장되도록 구현.
+- security_kb.txt 내에 구분자를 기준으로. indexer.py에서 블록 단위로 문서를 분할하여 하나의 보안 지식이 온전한 맥락(Context)을 유지한 채 VectorDB에 저장되도록 구현.
 
 ---
 
