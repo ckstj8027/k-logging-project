@@ -244,7 +244,7 @@ KUBERNETES_SERVICE_PORT
 6 서버로 전송 
    1. K8s API 호출 → 받은 데이터 자바 객체(`V1PodList` 등)를 Java DTO로 변환.
    2. 변환된 Java DTO들을 SnapshotBlockingQueue에 넣음.
-   3. 큐에서 Java 객체를 꺼내어 JSON 문자열로 직렬화(Jackson).
+   3. 큐에서 Java 객체를 꺼내어 JSON 문자열로 직렬화.
    4. HTTP 헤더(X-API-KEY)와 함께 서버로 전송. 
 
 
@@ -295,7 +295,7 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
      
 ---
 
-  처리 흐름 (Workflow)
+  ### 처리 흐름 (Workflow)
 
 
   데이터 수집 및 적재
