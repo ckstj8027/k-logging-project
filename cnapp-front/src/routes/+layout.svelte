@@ -2,6 +2,7 @@
   import '../app.css';
   import { onMount } from 'svelte';
   import { isAuthenticated, checkAuth, clearAuthToken, user } from '$lib/auth';
+  import { fetchDashboardSummary } from '$lib/store';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { browser } from '$app/environment';
@@ -14,8 +15,11 @@
     goto('/login');
   }
 
-  onMount(() => {
+  onMount(async () => {
     checkAuth();
+    if (isAuthenticated) {
+      fetchDashboardSummary();
+    }
   });
 
   function logout() {
