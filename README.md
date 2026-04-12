@@ -53,7 +53,7 @@ System Architecture
 
 시스템은 크게 에이전트(Agent)와 관리 서버(Server)로 나뉘며, 메시지 큐(RabbitMQ)와 관계형 데이터베이스(PostgreSQL)를 중심으로 동작합니다.
 
-AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 MCP를 통해 실시간 DB와 RAG 를 도구(Tools)로서 사용해 위협 분석 및 해결책을 제시합니다.
+AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 실시간 DB 조회와 RAG 를 도구(Tools)로서 사용해 위협 분석 및 해결책을 제시합니다.
 
 * Agent (Client Side): K8s 클러스터 내부 리소스를 수집하여 서버로 전송합니다.
 * Backend Server: 수집된 데이터를 분석하고, 정책에 따라 보안 위협을 탐지하며 알람을 생성합니다.
