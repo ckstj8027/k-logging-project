@@ -345,7 +345,7 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
 
 
 ### opt 
----
+
 백엔드 서버 3개 기준으로 k6 부하 테스트
 ---
 
