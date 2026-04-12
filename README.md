@@ -262,9 +262,6 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
 
 서비스 및 포트 분리: service_profiles와 service_ports가 1:N 관계로 정규화되어 있는 구조 역시 ServiceProfile 엔티티 내의 @OneToMany 관계
 
-이미지 하단의 shedlock 테이블은 프로젝트의 DataInitializer 클래스에서 실제 SQL로 생성. 분산 환경에서의 스케줄링 중복 방지 설계
-
- 
 ---
 
    주요 구성 요소별 기능
