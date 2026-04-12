@@ -303,25 +303,21 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
 
   ---
 
-  핵심 처리 흐름 (Workflow)
+  처리 흐름 (Workflow)
 
 
-  [Blue Flow] 데이터 수집 및 적재
+  데이터 수집 및 적재
    1. 에이전트: K8s API를 통해 Pod, Service, Node 등의 상태를 1분 주기로 수집합니다.
    2. 전송: 수집된 데이터를 X-API-KEY와 함께 서버의 LogIngestionController로 전송합니다.
    3. 큐잉: 서버는 데이터를 즉시 DB에 넣지 않고 RabbitMQ의 ingestion.raw.queue에 적재하여 병목 현상을 방지합니다.
 
 
-  [Yellow Flow] 보안 분석 및 탐지 (정책 엔진)
+  보안 분석 및 탐지 (정책 엔진)
    1. 소비: RawLogConsumer가 큐에서 데이터를 꺼냅니다.
    2. 분석: 전략 패턴(Strategy Pattern)으로 구현된 10여 가지 보안 정책을 적용합니다.
         Pod이 Privileged 모드로 실행 중인가? 최신(latest) 태그를 사용하는가? 위험 포트가 열려 있는가? 등
    3. 알림: 정책 위반 발견 시 Alert 객체를 생성하여 DB에 저장하고 대시보드에 노출합니다.
 
-
-  [Green Flow] 시스템 유지 관리
-   1. 감시: 스케줄러가 리소스의 lastSeenAt 시간을 체크합니다.
-   2. 삭제: 비정상 종료된 에이전트의 잔적이나 오래된 로그 데이터를 삭제하여 DB 성능을 최적화합니다.
 
   ---
    
