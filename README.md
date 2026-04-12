@@ -48,15 +48,75 @@ System Architecture
 에이전트와 서버 간의 데이터 흐름 및 동기화 아키텍처입니다.
 
 
-<img width="2814" height="1536" alt="ar" src="https://github.com/user-attachments/assets/63871201-aca7-48ae-bb4f-66a25b6814af" />
+<img width="1305" height="715" alt="image" src="https://github.com/user-attachments/assets/79e7506a-ae24-482c-9354-ccb118efb91c" />
 
-시스템은 크게 에이전트(Agent)와 관리 서버(Server)로 나뉘며, 메시지 브로커(RabbitMQ)와 관계형 데이터베이스(PostgreSQL)를 중심으로 동작합니다.
+
+시스템은 크게 에이전트(Agent)와 관리 서버(Server)로 나뉘며, 메시지 큐(RabbitMQ)와 관계형 데이터베이스(PostgreSQL)를 중심으로 동작합니다.
+
+AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 MCP를 통해 실시간 DB와 RAG 를 도구(Tools)로서 사용해 위협 분석 및 해결책을 제시합니다.
 
 * Agent (Client Side): K8s 클러스터 내부 리소스를 수집하여 서버로 전송합니다.
-* Server (Management Platform): 수집된 데이터를 분석하고, 정책에 따라 보안 위협을 탐지하며 알람을 생성합니다.
-* Data Flow: 수집(Blue Flow) → 분석 및 알림(Yellow Flow) → 데이터 정리(Green Flow)의 순환 구조를 가집니다.
+* Backend Server: 수집된 데이터를 분석하고, 정책에 따라 보안 위협을 탐지하며 알람을 생성합니다.
+* AI Server: 수집된 실시간 자산 데이터와 보안 지식베이스(RAG)를 융합 분석하여, 위협 분석 및 해결책 제시.
+
 
 #
+---
+# AI server
+
+---
+
+AI 서버는 쿠버네티스 보안 실시간 데이터(PostgreSQL)와 정적 보안 지식(RAG)을 융합하여 분석 결과를 제공하는 지능형 보안 에이전트입니다.
+
+- Framework: FastAPI
+- Orchestration: LangGraph
+- Persistence Layer: Hybrid Strategy (Redis + PostgreSQL)
+
+---
+
+LangGraph 기반 워크플로우 설계
+1회성 답변(Chain)이 아닌, 도구 실행 결과에 따른 재시도 및 검증(Loop)이 가능한 그래프 구조를 채택했습니다.
+
+그래프 노드 구조
+
+1. Router : 사용자의 질문 의도를 분석하여 db_tool 또는 rag_tool 호출을 결정합니다.
+2. Tools: 실시간 K8s 자산 데이터(SQL) 또는 보안 지식베이스(RAG)를 조회합니다.
+3. Validator (Self-Correction): LLM이 생성한 SQL의 문법 오류나 테넌트 필터링 누락을 감지합니다. 오류 발견 시 에러 메시지를 포함하여 다시 Agent 노드로 회귀시켜 스스로 쿼리를 수정(Self-healing)하게 유도합니다.
+4. Generator: 최종 수집된 정보를 보안 컨설턴트 톤의 한국어로 요약하여 응답합니다.
+
+---
+
+ 데이터 저장 및 맥락 유지 전략 (Persistence)
+Stateless한 JWT 환경에서 대화의 맥락(Context)을 유지하기 위해 이중 저장소 사용.
+
+ Redis: 세션 캐싱 및 실시간 상태 관리
+
+- 현재 진행 중인 대화의 중간 상태(State)와 사용자 정보(User/Tenant Context)를 초고속으로 캐싱합니다.
+- LangGraph의 상태 전파는 빈번한 읽기/쓰기가 발생하므로, 지연 시간을 최소화하기 위해 인메모리 저장소인 Redis를 선택했습니다.
+
+PostgreSQL: PostgresCheckpointer 기반 히스토리 영구 보존
+
+- 대화가 종료된 후에도 thread_id를 기준으로 과거 모든 대화 이력을 보존합니다.
+- LangGraph의 PostgresCheckpointer를 활용해, 공유 DB 내 ai_checkpoints 테이블에 스냅샷을 저장
+
+실시간 속도는 Redis가, 데이터의 신뢰성과 영구 보존은 PostgreSQL이 담당하도록 책임을 분리.
+
+---
+
+고도화된 RAG 및 인덱싱 전략
+청크 전략
+
+- 글자 수로 문서를 자를 경우, 취약점의 '설명'과 '조치 방법'이 서로 다른 청크로 나뉘어 검색 품질이 저하되는 문제 발생.
+- security_kb.txt 내에 --- 구분자를 도입. indexer.py에서 논리적 블록 단위로 문서를 분할하여 하나의 보안 지식이 온전한 맥락(Context)을 유지한 채 VectorDB에 저장되도록 구현.
+
+---
+
+ 테넌트 간 데이터 격리
+
+- 시스템 프롬프트 주입: 에이전트에게 "다중 테넌트 환경의 컨설턴트임"을 지속적으로 인지시켜, 쿼리 생성 시 스스로 필터링을 걸도록 제한.
+- tenant_id = {request_tenant_id} 필터가 SQL에 포함되어 있지 않으면 실행을 즉시 차단하고 에러를 반환
+
+
 
 ---
 # Agent
@@ -243,25 +303,21 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
 
   ---
 
-  핵심 처리 흐름 (Workflow)
+  처리 흐름 (Workflow)
 
 
-  [Blue Flow] 데이터 수집 및 적재
+  데이터 수집 및 적재
    1. 에이전트: K8s API를 통해 Pod, Service, Node 등의 상태를 1분 주기로 수집합니다.
    2. 전송: 수집된 데이터를 X-API-KEY와 함께 서버의 LogIngestionController로 전송합니다.
    3. 큐잉: 서버는 데이터를 즉시 DB에 넣지 않고 RabbitMQ의 ingestion.raw.queue에 적재하여 병목 현상을 방지합니다.
 
 
-  [Yellow Flow] 보안 분석 및 탐지 (정책 엔진)
+  보안 분석 및 탐지 (정책 엔진)
    1. 소비: RawLogConsumer가 큐에서 데이터를 꺼냅니다.
    2. 분석: 전략 패턴(Strategy Pattern)으로 구현된 10여 가지 보안 정책을 적용합니다.
         Pod이 Privileged 모드로 실행 중인가? 최신(latest) 태그를 사용하는가? 위험 포트가 열려 있는가? 등
    3. 알림: 정책 위반 발견 시 Alert 객체를 생성하여 DB에 저장하고 대시보드에 노출합니다.
 
-
-  [Green Flow] 시스템 유지 관리
-   1. 감시: 스케줄러가 리소스의 lastSeenAt 시간을 체크합니다.
-   2. 삭제: 비정상 종료된 에이전트의 잔적이나 오래된 로그 데이터를 삭제하여 DB 성능을 최적화합니다.
 
   ---
    
