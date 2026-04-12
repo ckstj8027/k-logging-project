@@ -344,8 +344,9 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
 
 
 
-opt
+### opt 
 ---
+백엔드 서버 3개 기준으로 k6 부하 테스트
 ---
 
 ### 1. 동기식 수집 병목 및 DB 커넥션 고갈 해결 (Message Queue & Caching 도입)
