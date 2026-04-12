@@ -48,9 +48,10 @@ System Architecture
 에이전트와 서버 간의 데이터 흐름 및 동기화 아키텍처입니다.
 
 
-<img width="2814" height="1536" alt="ar" src="https://github.com/user-attachments/assets/63871201-aca7-48ae-bb4f-66a25b6814af" />
+<img width="1305" height="715" alt="image" src="https://github.com/user-attachments/assets/79e7506a-ae24-482c-9354-ccb118efb91c" />
 
-시스템은 크게 에이전트(Agent)와 관리 서버(Server)로 나뉘며, 메시지 브로커(RabbitMQ)와 관계형 데이터베이스(PostgreSQL)를 중심으로 동작합니다.
+
+시스템은 크게 에이전트(Agent)와 관리 서버(Server)로 나뉘며, 메시지 큐(RabbitMQ)와 관계형 데이터베이스(PostgreSQL)를 중심으로 동작합니다.
 
 * Agent (Client Side): K8s 클러스터 내부 리소스를 수집하여 서버로 전송합니다.
 * Backend Server: 수집된 데이터를 분석하고, 정책에 따라 보안 위협을 탐지하며 알람을 생성합니다.
