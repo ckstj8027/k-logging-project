@@ -1,0 +1,14 @@
+[제목]: 권한 상승 컨테이너 (Privileged Container) 위험
+[위험도]: HIGH
+[설명]: 컨테이너가 호스트의 모든 장치에 접근할 수 있어 클러스터 전체 장악 위험.
+[조치방법]: deployment YAML의 securityContext에서 privileged: false 로 설정.
+---
+[제목]: 취약점 - nginx:1.14 (CVE-2024-XXXX)
+[위험도]: CRITICAL
+[설명]: 특정 버전의 nginx에서 발생하는 원격 코드 실행 취약점.
+[조치방법]: 이미지 버전을 1.15 이상으로 업데이트하거나 최신 Stable 버전 사용.
+---
+[제목]: 미제한적 서비스 노출 (Unrestricted Service Exposure)
+[위험도]: MEDIUM
+[설명]: 서비스가 LoadBalancer 타입으로 설정되어 공인 IP에 무분별하게 노출됨.
+[조치방법]: 서비스 타입을 ClusterIP로 변경하거나, Ingress를 통해 접근을 제어하고 Whitelist를 설정함.

@@ -41,3 +41,13 @@ out/
 node_modules/
 dist/
 .env
+
+### AI-server (Python/FastAPI) ###
+AI-server/.env
+AI-server/__pycache__/
+AI-server/*.py[cod]
+AI-server/venv/
+AI-server/.venv/
+AI-server/env/
+AI-server/.pytest_cache/
+AI-server/chroma_db/

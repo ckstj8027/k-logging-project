@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+langchain
+langchain-openai
+langchain-community
+langgraph
+langchain-chroma
+psycopg2-binary
+redis
+python-dotenv
+pandas
+sqlalchemy
+pydantic-settings
