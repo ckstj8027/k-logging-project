@@ -294,14 +294,6 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
    * scan.queue (스캔 큐): 특정 리소스에 대해 정밀 스캔이 필요할 때 작업 명령을 전달하는 통로로 사용됩니다.
      
 ---
-   스케줄러 (Scheduler) - 자동화 계층
-  ShedLock을 활용하여 분산 환경에서도 중복 없이 정기적인 작업을 수행합니다.
-
-
-   ResourceCleanupService (데이터 정리): 매 1분마다 실행됩니다. 에이전트로부터 2분 이상 보고가 없는(죽은) 리소스를 DB에서 자동으로 삭제하여 최신 상태를 유지합니다.
-   SecurityScannerService (정기 스캔): 매 1시간마다 실행됩니다. 실시간 탐지에서 놓칠 수 있는 위협을 위해 모든 테넌트의 리소스를 전수 조사합니다.
-
-  ---
 
   처리 흐름 (Workflow)
 
