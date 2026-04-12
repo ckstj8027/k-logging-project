@@ -307,7 +307,7 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
 
 
   데이터 수집 및 적재
-   1. 에이전트: K8s API를 통해 Pod, Service, Node 등의 상태를 1분 주기로 수집합니다.
+   1. 에이전트: 최초에 한번 K8s API를 통해 Pod, Service, Node 등의 상태를 수집합니다. 이후 watch api를 통해 변경사항만 실시간으로 수집합니다.
    2. 전송: 수집된 데이터를 X-API-KEY와 함께 서버의 LogIngestionController로 전송합니다.
    3. 큐잉: 서버는 데이터를 즉시 DB에 넣지 않고 RabbitMQ의 ingestion.raw.queue에 적재하여 병목 현상을 방지합니다.
 
