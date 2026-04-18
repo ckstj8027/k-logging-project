@@ -127,7 +127,7 @@ erd 구조
 - `last_seen_at` 기반 정렬 성능 최적화
 - 복합 인덱스를 통한 조회 성능 최적화
 
-### 복합 인덱스 예시 (`pod_profiles`)
+### 인덱스 적용 예시 (`pod_profiles`)
 
 - `(tenant_id, namespace, pod_name, container_name)` → 데이터 식별 및 조회 최적화
 - `last_seen_at` → 최신 데이터 조회 최적화
