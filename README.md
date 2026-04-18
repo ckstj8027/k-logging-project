@@ -134,11 +134,11 @@ erd 구조
 
 ---
 
-## 3. 쿼리 최적화
+### 3. 쿼리 최적화
 
 대규모 데이터 환경에서의 조회 성능을 위해 다음과 같은 최적화를 적용했습니다.
 
-### 3.1 No-Offset Pagination
+## 3.1 No-Offset Pagination
 
 - `OFFSET` 기반 페이징의 성능 저하 문제 해결
 - `lastId 기반 Keyset Pagination` 적용
@@ -146,7 +146,7 @@ erd 구조
 
 ---
 
-### 3.2 Index Range Scan
+## 3.2 Index Range Scan
 
 - `tenant_id` 기반 복합 인덱스 활용
 - Full Table Scan 제거
@@ -154,7 +154,7 @@ erd 구조
 
 ---
 
-### 3.3 Zero-Join Architecture
+## 3.3 Zero-Join Architecture
 
 - `pod_profiles`에 `AssetContext`를 `@Embedded`로 통합하여 반정규화 적용
 - 자주 조회되는 자산 정보를 단일 테이블로 구성
@@ -162,14 +162,14 @@ erd 구조
 
 ---
 
-### 3.4 Sorting Optimization
+## 3.4 Sorting Optimization
 
 - `last_seen_at` 기반 인덱스 정렬 구조 설계
 - 별도의 Sort(Filesort) 없이 Index Scan만으로 정렬 처리
 
 ---
 
-## 4. 결과
+### 4. 결과
 
 - 3NF 기반 데이터 무결성 확보
 - 선택적 반정규화로 조회 성능 최적화 (JOIN 비용 제거)
@@ -256,7 +256,7 @@ erd 구조
 
 
 
-### opt 
+## OPT
 
 ---
 
