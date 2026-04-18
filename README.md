@@ -87,11 +87,11 @@ AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 실시간 D
 
 ---
 
-Server
+## Server
 
 ---
 
-erd 구조 
+### erd 구조 
 
 ---
 
@@ -107,7 +107,7 @@ erd 구조
 
 ---
 
-## 1. Database 설계
+### 1. Database 설계
 
 - 전체 도메인 모델은 제3정규형(3NF) 기반으로 설계
 - 테넌트 기반 SaaS 구조에서 데이터 무결성과 정합성 확보
@@ -117,17 +117,17 @@ erd 구조
 
 ---
 
-## 2. Index 설계
+### 2. Index 설계
 
 모든 테이블은 tenant_id 기반 멀티 테넌시 구조로 설계되어 데이터 격리를 보장합니다.
 
-### 주요 인덱스 전략
+#### 주요 인덱스 전략
 
 - `tenant_id` 기반 데이터 분리 (테넌트 격리)
 - `last_seen_at` 기반 정렬 성능 최적화
 - 복합 인덱스를 통한 조회 성능 최적화
 
-### 인덱스 적용 예시 (`pod_profiles`)
+#### 인덱스 적용 예시 (`pod_profiles`)
 
 - `(tenant_id, namespace, pod_name, container_name)` → 데이터 식별 및 조회 최적화
 - `last_seen_at` → 최신 데이터 조회 최적화
@@ -138,7 +138,7 @@ erd 구조
 
 대규모 데이터 환경에서의 조회 성능을 위해 다음과 같은 최적화를 적용했습니다.
 
-## 3.1 No-Offset Pagination
+#### 3.1 No-Offset Pagination
 
 - `OFFSET` 기반 페이징의 성능 저하 문제 해결
 - `lastId 기반 Keyset Pagination` 적용
@@ -146,7 +146,7 @@ erd 구조
 
 ---
 
-## 3.2 Index Range Scan
+#### 3.2 Index Range Scan
 
 - `tenant_id` 기반 복합 인덱스 활용
 - Full Table Scan 제거
@@ -154,7 +154,7 @@ erd 구조
 
 ---
 
-## 3.3 Zero-Join Architecture
+#### 3.3 Zero-Join Architecture
 
 - `pod_profiles`에 `AssetContext`를 `@Embedded`로 통합하여 반정규화 적용
 - 자주 조회되는 자산 정보를 단일 테이블로 구성
@@ -162,7 +162,7 @@ erd 구조
 
 ---
 
-## 3.4 Sorting Optimization
+#### 3.4 Sorting Optimization
 
 - `last_seen_at` 기반 인덱스 정렬 구조 설계
 - 별도의 Sort(Filesort) 없이 Index Scan만으로 정렬 처리
