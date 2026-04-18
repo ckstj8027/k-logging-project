@@ -87,7 +87,7 @@ AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 실시간 D
 
 ---
 
-## Server
+# Server
 
 ---
 
@@ -309,7 +309,7 @@ AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 실시간 D
 
 
 ---
-# AI server (기능 개발중)
+### AI server (기능 개발중)
 
 ---
 
