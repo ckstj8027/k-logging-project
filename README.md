@@ -165,7 +165,7 @@ AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 실시간 D
 #### 3.4 Sorting Optimization
 
 - `last_seen_at` 기반 인덱스 정렬 구조 설계
-- 별도의 Sort(Filesort) 없이 Index Scan만으로 정렬 처리
+- 별도의 Sort 없이 Index Scan만으로 정렬 처리
 
 ---
 
