@@ -61,172 +61,13 @@ AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 실시간 D
 
 
 #
----
-# AI server
-
----
-
-AI 서버는 쿠버네티스 보안 실시간 데이터(PostgreSQL)와 정적 보안 지식(RAG)을 융합하여 분석 결과를 제공하는 지능형 보안 에이전트입니다.
-
-- Framework: FastAPI
-- Orchestration: LangGraph
-- Persistence Layer: Hybrid Strategy (Redis + PostgreSQL)
-
----
-
-LangGraph 기반 워크플로우 설계
-1회성 답변(Chain)이 아닌, 도구 실행 결과에 따른 재시도 및 검증(Loop)이 가능한 그래프 구조를 채택했습니다.
-
-그래프 노드 구조
-
-1. Router : 사용자의 질문 의도를 분석하여 db_tool 또는 rag_tool 호출을 결정합니다.
-2. Tools: 실시간 K8s 자산 데이터(SQL) 또는 보안 지식베이스(RAG)를 조회합니다.
-3. Validator (Self-Correction): LLM이 생성한 SQL의 문법 오류나 테넌트 필터링 누락을 감지합니다. 오류 발견 시 에러 메시지를 포함하여 다시 Agent 노드로 회귀시켜 스스로 쿼리를 수정(Self-healing)하게 유도합니다.
-4. Generator: 최종 수집된 정보를 보안 컨설턴트 톤의 한국어로 요약하여 응답합니다.
-
----
-
- 데이터 저장 및 맥락 유지 전략 (Persistence)
-Stateless한 JWT 환경에서 대화의 맥락(Context)을 유지하기 위해 이중 저장소 사용.
-
- Redis: 세션 캐싱 및 실시간 상태 관리
-
-- 현재 진행 중인 대화의 중간 상태(State)와 사용자 정보(User/Tenant Context)를 초고속으로 캐싱합니다.
-- LangGraph의 상태 전파는 빈번한 읽기/쓰기가 발생하므로, 지연 시간을 최소화하기 위해 인메모리 저장소인 Redis를 선택했습니다.
-
-PostgreSQL: PostgresCheckpointer 기반 히스토리 영구 보존
-
-- 대화가 종료된 후에도 thread_id를 기준으로 과거 모든 대화 이력을 보존합니다.
-- LangGraph의 PostgresCheckpointer를 활용해, 공유 DB 내 ai_checkpoints 테이블에 스냅샷을 저장
-
-실시간 속도는 Redis가, 데이터의 신뢰성과 영구 보존은 PostgreSQL이 담당하도록 책임을 분리.
-
----
-
-고도화된 RAG 및 인덱싱 전략
-청크 전략
-
-- 글자 수로 문서를 자를 경우, 취약점의 '설명'과 '조치 방법'이 서로 다른 청크로 나뉘어 검색 품질이 저하되는 문제 발생.
-- security_kb.txt 내에 구분자를 기준으로. indexer.py에서 블록 단위로 문서를 분할하여 하나의 보안 지식이 온전한 맥락(Context)을 유지한 채 VectorDB에 저장되도록 구현.
-
----
-
- 테넌트 간 데이터 격리
-
-- 시스템 프롬프트 주입: 에이전트에게 "다중 테넌트 환경의 컨설턴트임"을 지속적으로 인지시켜, 쿼리 생성 시 스스로 필터링을 걸도록 제한.
-- tenant_id = {request_tenant_id} 필터가 SQL에 포함되어 있지 않으면 실행을 즉시 차단하고 에러를 반환
-
-
 
 ---
 # Agent
 
 ---
 
-## agent의 API 서버 접근 원리
-
-Pod가 생성될 때 Kubernetes는 컨테이너가 API 서버와 통신할 수 있도록
-
-필요한 정보를 자동으로 주입합니다.
-
-이건 크게 두 가지로 나뉩니다:
-
----
-
-### API 서버 위치 정보
-
-Kubelet은 다음을 기준으로 환경변수를 만듭니다:
-
-- 현재 네임스페이스
-- `default` 네임스페이스의 Service
-
-여기서 기본적으로 존재하는 Service:
-
-- `kubernetes.default.svc.cluster.local`
-
-이 Service를 기반으로 아래 규칙으로 변환됩니다:
-
-| 규칙 | 결과 |
-| --- | --- |
-| 서비스 이름 | kubernetes |
-| 대문자 변환 | KUBERNETES |
-| 접미사 추가 | `_SERVICE_HOST`, `_SERVICE_PORT` |
-
-👉 최종 환경변수:
-
-```
-KUBERNETES_SERVICE_HOST=10.96.0.1
-KUBERNETES_SERVICE_PORT=443
-```
-
-즉, **"어디로 요청할지" 알려주는 정보**
-
----
-
-## 인증 정보: ServiceAccount 기반 (토큰 + CA)
-
-Pod에 ServiceAccount가 지정되면,
-
-Kubernetes의 Admission Controller가 Pod 정의를 자동으로 수정합니다.
-
-### 자동으로 추가되는 것
-
-### 1) 토큰 (인증) → "누가 요청하는가"
-
-```
-/var/run/secrets/kubernetes.io/serviceaccount/token
-```
-
-### 2) CA 인증서 (TLS 검증) → "서버가 진짜인지 검증"
-
-```
-/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-```
-
-
-즉 volumes , volumes mount 를 통해 실제로 컨테이너에 인증서 및 토큰 파일을 마운트합니다.
-
----
-
-## 최종적으로
-
- API 서버의 위치 + 인증 정보가 Pod 생성 시 자동으로 주입
-
-### 서버 정보 (환경변수)
-
-```
-KUBERNETES_SERVICE_HOST
-KUBERNETES_SERVICE_PORT
-```
-
-### 인증 정보 (파일)
-
-```
-/var/run/secrets/kubernetes.io/serviceaccount/token
-/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-```
-
----
-
-
-## 실제 통신 과정
-
-컨테이너 내부에서 Java/Spring 애플리케이션이 시작되면, `io.kubernetes:client-java` 라이브러리는 다음과 같이 동작합니다.
-
-1. 환경변수 스캔: 주입된 `HOST`와 `PORT`를 읽어 접속 URL을 생성합니다.
-2. 기본 경로 탐색: 라이브러리에 하드코딩된 SA 마운트 경로(`/var/run/secrets/...`)를 뒤져 `token`과 `ca.crt`를 메모리에 올립니다.
-3. API 구성 완료: 위 정보들을 조합하여 HTTPS을 형성하고 API 서버와 통신을 시작합니다.
-
-4 TLS 헨드쉐이크 
-
-- 이제 에이전트가 `https://10.96.0.1` (API 서버)에 접속할 때를 봅시다.
-
-- 에이전트의 준비물: 에이전트는 전 세계 공통의 CA 리스트를 쓰지 않습니다. 대신, Kubelet이 Pod 안에 꽂아준 `/var/run/secrets/.../ca.crt`를 꺼내 듭니다. 이게 이 클러스터만의 전용 Root CA입니다.
-
-- 서버의 증명: K8s API 서버는 에이전트에게 자신의 인증서(Cluster CA가 보증하는 API 서버의 공개키)을 보여줍니다.
-- 검증: 에이전트는 마운트된 `ca.crt` 도장과 서버가 보여준 신분증 대조 이후 통신을 시작합니다.
-  
-5 실제 데이터 교환 
+## 데이터 흐름
 
 검증된 TLS 터널이 뚫린 후, 에이전트가 `리소스`를 가져오는 과정은 다음과 같은 흐름으로 진행됩니다.
 
@@ -234,9 +75,9 @@ KUBERNETES_SERVICE_PORT
     - `Authorization: Bearer <JWT_TOKEN_CONTENT>`
 2. API 호출 전송: TLS로 암호화된 통로를 통해 API 서버에 요청을 던집니다.
     - 예: `GET /api/v1/pods` (Pod 리스트 조회)
-3. API 서버의 최종 승인: API 서버는 토큰을 보고 신원을 확인한 후, **RBAC(RoleBinding)** 설정을 확인합니다.
-    - "이 토큰의 주인(`k8s-agent-sa`)이 전체 네임스페이스의 Pod를 볼 권한이 있나?"
-4. 데이터 응답: 권한이 확인되면 API 서버는 JSON 데이터를 응답하고, 에이전트의 `io.kubernetes:client-java`는 이를 자바 객체(`V1PodList` 등)로 변환합니다.
+3. API 서버의 최종 승인: API 서버는 토큰을 보고 신원을 확인한 후, **RBAC(RoleBinding)** 설정을 확인.
+    - "이 토큰의 주인(`k8s-agent-sa`)이 전체 네임스페이스의 Pod를 볼 권한 확인"
+4. 데이터 응답: 권한이 확인되면 API 서버는 JSON 데이터를 응답하고, 에이전트의 `io.kubernetes:client-java`는 이를 자바 객체(`V1PodList` 등)로 변환.
 
 6 서버로 전송 
    1. K8s API 호출 → 받은 데이터 자바 객체(`V1PodList` 등)를 Java DTO로 변환.
@@ -244,23 +85,97 @@ KUBERNETES_SERVICE_PORT
    3. 큐에서 Java 객체를 꺼내어 JSON 문자열로 직렬화.
    4. HTTP 헤더(X-API-KEY)와 함께 서버로 전송. 
 
-
-
-
----
-Server
 ---
 
-erd 구조 
+# Server
+
+---
+
+### erd 구조 
+
 ---
 
 <img width="2754" height="2988" alt="image" src="https://github.com/user-attachments/assets/28b89252-e5e0-4e98-96d3-f569ab986a08" />
 
-멀티 테넌시 구조: 모든 핵심 테이블(pod_profiles, alerts, policies, users 등)이 tenants 테이블의 id를 외래 키(tenant_id)로 가지고 있어, 고객사별 데이터를 격리하여 SaaS형 구조 설계
+---
 
-K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_privilege_escalation 등 보안 스캔에 필요한 상세 필드들이 엔티티 클래스에 정확히 선언
 
-서비스 및 포트 분리: service_profiles와 service_ports가 1:N 관계로 정규화되어 있는 구조 역시 ServiceProfile 엔티티 내의 @OneToMany 관계
+
+멀티 테넌시 구조를 기반으로, 모든 핵심 테이블(`pod_profiles`, `alerts`, `policies`, `users` 등)은 `tenant_id`를 외래 키로 사용하여 고객사별 데이터 격리를 구현했습니다.
+
+ 데이터 무결성(3NF)과 대규모 조회 성능 최적화를 동시에 만족시키기 위해 논리적 설계와 물리적 성능 설계를 분리한 하이브리드 구조를 채택했습니다.
+
+---
+
+### 1. Database 설계
+
+- 전체 도메인 모델은 제3정규형(3NF) 기반으로 설계
+- 테넌트 기반 SaaS 구조에서 데이터 무결성과 정합성 확보
+- 주요 엔티티: `Tenants`, `Users`, `Policies`, `Alerts`
+- 조회 중심 테이블(`pod_profiles`)은 성능 최적화를 위해 반정규화 적용(2NF)
+- 코드 레벨에서는 `@Embeddable (AssetContext)`를 활용하여 객체지향 구조 및 재사용성 유지
+
+---
+
+### 2. Index 설계
+
+모든 테이블은 tenant_id 기반 멀티 테넌시 구조로 설계되어 데이터 격리를 보장합니다.
+
+#### 주요 인덱스 전략
+
+- `tenant_id` 기반 데이터 분리 (테넌트 격리)
+- `last_seen_at` 기반 정렬 성능 최적화
+- 복합 인덱스를 통한 조회 성능 최적화
+
+#### 인덱스 적용 예시 (`pod_profiles`)
+
+- `(tenant_id, namespace, pod_name, container_name)` → 데이터 식별 및 조회 최적화
+- `last_seen_at` → 최신 데이터 조회 최적화
+
+---
+
+### 3. 쿼리 최적화
+
+대규모 데이터 환경에서의 조회 성능을 위해 다음과 같은 최적화를 적용했습니다.
+
+#### 3.1 No-Offset Pagination
+
+- `OFFSET` 기반 페이징의 성능 저하 문제 해결
+- `lastId 기반 Keyset Pagination` 적용
+- 페이지 위치와 무관하게 일정한 성능 유지
+
+---
+
+#### 3.2 Index Range Scan
+
+- `tenant_id` 기반 복합 인덱스 활용
+- Full Table Scan 제거
+- 테넌트 단위 조회 성능을 데이터 규모와 무관하게 유지
+
+---
+
+#### 3.3 Zero-Join Architecture
+
+- `pod_profiles`에 `AssetContext`를 `@Embedded`로 통합하여 반정규화 적용
+- 자주 조회되는 자산 정보를 단일 테이블로 구성
+- JOIN 제거를 통한 I/O 최소화
+
+---
+
+#### 3.4 Sorting Optimization
+
+- `last_seen_at` 기반 인덱스 정렬 구조 설계
+- 별도의 Sort 없이 Index Scan만으로 정렬 처리
+
+---
+
+### 4. 결과
+
+- 3NF 기반 데이터 무결성 확보
+- 선택적 반정규화로 조회 성능 최적화 (JOIN 비용 제거)
+- Covering Index로 테이블 접근 제거
+- Index Range Scan+Keyset Pagination + Index Sorting 결합으로 페이징/정렬 병목 제거
+- 멀티 테넌시 기반 SaaS 확장 구조 지원
 
 ---
 
@@ -341,7 +256,7 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
 
 
 
-### opt 
+## OPT
 
 ---
 
@@ -372,14 +287,18 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
     - DB 부하 90% 이상 절감: 반복적인 대량 조회 쿼리를 제거하고, 이벤트 발생 시에만 선택적으로 I/O를 수행하여 시스템 가용성 극대화.
     - 완벽한 정합성 보장: 리소스 삭제 시 수 초 내에 대시보드 반영 및 관련 알람 업데이트가 이루어짐.
 
-### 3. 분산락 적용
+### 3. 지점별 lock 전략 도입
 
-- **기존의 문제**
-    - 서버가 여러 대일 경우 보안 위협을 스캔 작업을 중복 실행하는 문제가 발생했습니다.
-- **개선 사항**
-    - **분산 환경 정합성:** 서버가 여러대 일경우 각 서버마다 스케줄러가 실행되는데, 스케줄러 중복 방지를 위해 ShedLock을 도입하고, DB 레벨에 Unique Index를 걸어 알림 중복 생성을 원천 차단했습니다.
-- **개선 결과**
-    - ShedLock과 DB 제약 조건을 활용하여 분산 환경에서의 중복 작업을 원천 차단하고 시스템 신뢰성을 확보했습니다.
+- **문제**
+    - 여러 서버에서 스케줄러가 동시에 실행되어 스캔 작업 중복 발생
+    - DB 동시 접근으로 알림 중복 및 상태 정합성 문제 발생
+- **개선**
+    - **애플리케이션 계층:** 분산락으로 단일 인스턴스만 스캔 실행
+    - **트랜잭션 계층:** 비관락을 걸어 동시 수정 차단 (SELECT ... FOR UPDATE)
+    - **DB 계층:** Unique Index로 중복 데이터 삽입 방지
+- **결과**
+    - 중복 작업 제거 및 데이터 정합성 확보
+    - 분산 환경에서 시스템 신뢰성 향상
 
 ---
 
@@ -388,6 +307,61 @@ K8s 프로필 상세: pod_profiles 테이블의 privileged, run_as_root, allow_p
 
 
 
+
+---
+### AI server (기능 개발중)
+
+---
+
+AI 서버는 쿠버네티스 보안 실시간 데이터(PostgreSQL)와 정적 보안 지식(RAG)을 융합하여 분석 결과를 제공하는 지능형 보안 에이전트입니다.
+
+- Framework: FastAPI
+- Orchestration: LangGraph
+- Persistence Layer: Hybrid Strategy (Redis + PostgreSQL)
+
+---
+
+LangGraph 기반 워크플로우 설계
+1회성 답변(Chain)이 아닌, 도구 실행 결과에 따른 재시도 및 검증(Loop)이 가능한 그래프 구조를 채택했습니다.
+
+그래프 노드 구조
+
+1. Router : 사용자의 질문 의도를 분석하여 db_tool 또는 rag_tool 호출을 결정합니다.
+2. Tools: 실시간 K8s 자산 데이터(SQL) 또는 보안 지식베이스(RAG)를 조회합니다.
+3. Validator (Self-Correction): LLM이 생성한 SQL의 문법 오류나 테넌트 필터링 누락을 감지합니다. 오류 발견 시 에러 메시지를 포함하여 다시 Agent 노드로 회귀시켜 스스로 쿼리를 수정(Self-healing)하게 유도합니다.
+4. Generator: 최종 수집된 정보를 보안 컨설턴트 톤의 한국어로 요약하여 응답합니다.
+
+---
+
+ 데이터 저장 및 맥락 유지 전략 (Persistence)
+Stateless한 JWT 환경에서 대화의 맥락(Context)을 유지하기 위해 이중 저장소 사용.
+
+ Redis: 세션 캐싱 및 실시간 상태 관리
+
+- 현재 진행 중인 대화의 중간 상태(State)와 사용자 정보(User/Tenant Context)를 초고속으로 캐싱합니다.
+- LangGraph의 상태 전파는 빈번한 읽기/쓰기가 발생하므로, 지연 시간을 최소화하기 위해 인메모리 저장소인 Redis를 선택했습니다.
+
+PostgreSQL: PostgresCheckpointer 기반 히스토리 영구 보존
+
+- 대화가 종료된 후에도 thread_id를 기준으로 과거 모든 대화 이력을 보존합니다.
+- LangGraph의 PostgresCheckpointer를 활용해, 공유 DB 내 ai_checkpoints 테이블에 스냅샷을 저장
+
+실시간 속도는 Redis가, 데이터의 신뢰성과 영구 보존은 PostgreSQL이 담당하도록 책임을 분리.
+
+---
+
+고도화된 RAG 및 인덱싱 전략
+청크 전략
+
+- 글자 수로 문서를 자를 경우, 취약점의 '설명'과 '조치 방법'이 서로 다른 청크로 나뉘어 검색 품질이 저하되는 문제 발생.
+- security_kb.txt 내에 구분자를 기준으로. indexer.py에서 블록 단위로 문서를 분할하여 하나의 보안 지식이 온전한 맥락(Context)을 유지한 채 VectorDB에 저장되도록 구현.
+
+---
+
+ 테넌트 간 데이터 격리
+
+- 시스템 프롬프트 주입: 에이전트에게 "다중 테넌트 환경의 컨설턴트임"을 지속적으로 인지시켜, 쿼리 생성 시 스스로 필터링을 걸도록 제한.
+- tenant_id = {request_tenant_id} 필터가 SQL에 포함되어 있지 않으면 실행을 즉시 차단하고 에러를 반환
 
 
 
