@@ -1,4 +1,4 @@
-# PostgreSQL (PVC와 배포 설정 분리)
+# [명세 준수] PostgreSQL 배포 및 강제 바인딩 PVC
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -8,7 +8,9 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.database.storage }}
+      storage: 8Gi
+  # [핵심] 특정 PV를 콕 찍어서 바인딩 (이름 불일치 방지)
+  volumeName: {{ .Release.Name }}-postgres-pv
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -18,6 +20,8 @@ spec:
   selector:
     matchLabels:
       app: postgres
+  strategy:
+    type: Recreate # DB는 한 번에 하나만 띄우도록 보장
   template:
     metadata:
       labels:

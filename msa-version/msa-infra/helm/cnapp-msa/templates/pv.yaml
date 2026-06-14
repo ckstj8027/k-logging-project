@@ -1,7 +1,4 @@
-# 로컬/테스트 환경을 위한 수동 PV 설정
-# StorageClass가 없는 환경에서도 PVC가 바인딩될 수 있도록 지원합니다.
-
-# PostgreSQL 전용 PV
+# [명세 준수] 모든 인프라 PV 설정 통합
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -13,9 +10,8 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   hostPath:
-    path: "/mnt/data/postgres-msa"
+    path: "/mnt/data/msa-postgres"
 ---
-# Kafka 전용 PV
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -27,18 +23,17 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   hostPath:
-    path: "/mnt/data/kafka-msa"
+    path: "/mnt/data/msa-kafka"
 ---
-# Redis 전용 PV
 apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: {{ .Release.Name }}-redis-pv
 spec:
   capacity:
-    storage: 4Gi
+    storage: 8Gi
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   hostPath:
-    path: "/mnt/data/redis-msa"
+    path: "/mnt/data/msa-redis"
