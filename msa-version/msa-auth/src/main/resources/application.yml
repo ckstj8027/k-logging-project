@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: msa-auth
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres-service:5432/cnappdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+server:
+  port: 8084

@@ -11,6 +11,14 @@ frontend:
     port: 80
 
 # --- MSA Backend Services ---
+auth: # 신규 추가
+  replicaCount: 1
+  image:
+    repository: ckstj8027/msa-auth
+    tag: latest
+  service:
+    port: 8084
+
 ingestion:
   replicaCount: 1
   image:
@@ -40,7 +48,7 @@ query:
 ingress:
   enabled: true
   className: "nginx"
-  host: "" # 모든 호스트/IP 접속 허용을 위해 비워둡니다.
+  host: ""
 
 # --- Infrastructure Settings ---
 kafka:

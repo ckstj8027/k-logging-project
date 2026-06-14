@@ -4,20 +4,43 @@ metadata:
   name: {{ .Release.Name }}-ingress
   annotations:
     kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-  # host 항목을 생략하여 모든 IP(192.168.56.30 등)로의 접속을 허용합니다.
   - http:
       paths:
-      # 1. 백엔드 API 분기
-      - path: /api
+      # 1. 인증/회원가입 분기
+      - path: /api/login
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-auth-service
+            port:
+              number: 8084
+      - path: /api/signup
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-auth-service
+            port:
+              number: 8084
+      # 2. 에이전트 수집 API 분기 (중요! ⭐)
+      - path: /api/v1/ingestion
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-ingestion
+            port:
+              number: 8081
+      # 3. 대시보드 조회 API 분기
+      - path: /api/v1/dashboard
         pathType: Prefix
         backend:
           service:
             name: {{ .Release.Name }}-query
             port:
-              number: 80 # query 서비스의 ClusterIP 포트
-      # 2. 프론트엔드 분기
+              number: 80
+      # 4. 프론트엔드 분기
       - path: /
         pathType: Prefix
         backend:

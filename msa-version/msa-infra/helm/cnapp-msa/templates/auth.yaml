@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-auth
+  labels:
+    app: auth
+spec:
+  replicas: {{ .Values.auth.replicaCount }}
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      containers:
+        - name: auth
+          image: "{{ .Values.auth.image.repository }}:{{ .Values.auth.image.tag }}"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8084
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "{{ .Values.database.user }}"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "{{ .Values.database.pass }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-auth-service
+spec:
+  ports:
+    - port: 8084
+      targetPort: 8084
+  selector:
+    app: auth
