@@ -1,17 +1,4 @@
-# PostgreSQL (기존 성공했던 설정을 MSA 버전에 맞게 이식)
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: {{ .Release.Name }}-postgres-pv
-spec:
-  capacity:
-    storage: {{ .Values.database.storage }}
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  hostPath:
-    path: "/mnt/data/postgres-msa"
----
+# PostgreSQL (PVC와 배포 설정 분리)
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
