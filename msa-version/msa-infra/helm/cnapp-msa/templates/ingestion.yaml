@@ -1,43 +1,16 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ .Release.Name }}-ingestion
-  labels:
-    app: ingestion
-spec:
-  replicas: {{ .Values.ingestion.replicaCount }}
-  selector:
-    matchLabels:
-      app: ingestion
-  template:
-    metadata:
-      labels:
-        app: ingestion
-    spec:
-      containers:
-        - name: ingestion
-          image: "{{ .Values.ingestion.image.repository }}:{{ .Values.ingestion.image.tag }}"
-          imagePullPolicy: Always
-          ports:
-            - containerPort: {{ .Values.ingestion.service.port }}
-          env:
-            # Spring Boot 표준 환경변수 규격 사용
-            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-              value: "{{ .Values.kafka.serviceName }}:{{ .Values.kafka.port }}"
-            - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
-            - name: SPRING_DATASOURCE_USERNAME
-              value: "{{ .Values.database.user }}"
-            - name: SPRING_DATASOURCE_PASSWORD
-              value: "{{ .Values.database.pass }}"
----
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-ingestion
+  name: {{ .Release.Name }}-ingestion-service
 spec:
   ports:
     - port: {{ .Values.ingestion.service.port }}
       targetPort: {{ .Values.ingestion.service.port }}
   selector:
     app: ingestion
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ingestion
+...
