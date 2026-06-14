@@ -8,7 +8,7 @@ spec:
   rules:
   - http:
       paths:
-      # [최우선] 회원가입과 로그인은 msa-auth-service가 직접 처리합니다.
+      # 1. 인증/회원가입 (msa-auth-service)
       - path: /api/signup
         pathType: Prefix
         backend:
@@ -24,8 +24,9 @@ spec:
             port:
               number: 8084
 
-      # [차선] 대시보드 데이터 조회는 msa-query-service가 처리합니다.
-      - path: /api/v1/dashboard
+      # 2. 대시보드 조회 (msa-query-service)
+      # 프론트가 부르는 모든 /api 요청 중 auth/ingestion 제외한 나머지를 담당
+      - path: /api
         pathType: Prefix
         backend:
           service:
@@ -33,7 +34,7 @@ spec:
             port:
               number: 80
 
-      # [차선] 에이전트 수집 API
+      # 3. 에이전트 수집 API (msa-ingestion-service)
       - path: /api/v1/ingestion
         pathType: Prefix
         backend:
@@ -42,7 +43,7 @@ spec:
             port:
               number: 8081
 
-      # [나머지] 모든 요청은 프론트엔드로 전달합니다.
+      # 4. 프론트엔드 (나머지 전체)
       - path: /
         pathType: Prefix
         backend:
