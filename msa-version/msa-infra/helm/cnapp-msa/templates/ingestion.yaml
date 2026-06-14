@@ -21,7 +21,7 @@ spec:
             - containerPort: {{ .Values.ingestion.service.port }}
           env:
             - name: KAFKA_BOOTSTRAP_SERVERS
-              value: {{ .Values.kafka.bootstrapServers }}
+              value: {{ .Values.kafka_bootstrap_servers | quote }}
 ---
 apiVersion: v1
 kind: Service

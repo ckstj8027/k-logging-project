@@ -28,14 +28,36 @@ query:
     type: LoadBalancer
     port: 80
 
-kafka:
-  bootstrapServers: "kafka-service:9092"
+# --- Dependencies Configuration ---
 
+# 1. Kafka (Bitnami)
+kafka:
+  fullnameOverride: kafka-service
+  listeners:
+    client:
+      protocol: PLAINTEXT
+  rbac:
+    create: true
+
+# 2. PostgreSQL (Bitnami)
+postgresql:
+  fullnameOverride: postgresql-service
+  auth:
+    database: cnapp
+    username: postgres
+    password: "password"
+    postgresPassword: "password"
+
+# 3. Redis (Bitnami)
+redis:
+  fullnameOverride: redis-service
+  auth:
+    enabled: false
+
+# --- Microservices Connection Mapping ---
+# 템플릿에서 .Values.kafka.bootstrapServers 형식으로 호출하기 위해 구조를 맞춥니다.
+kafka_bootstrap_servers: "kafka-service:9092"
 database:
   url: "jdbc:postgresql://postgresql-service:5432/cnapp"
   user: "postgres"
   pass: "password"
-
-redis:
-  host: "redis-service"
-  port: 6379
