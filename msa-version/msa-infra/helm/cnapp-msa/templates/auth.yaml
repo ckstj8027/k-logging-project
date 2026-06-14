@@ -19,7 +19,7 @@ spec:
           image: "{{ .Values.auth.image.repository }}:{{ .Values.auth.image.tag }}"
           imagePullPolicy: Always
           ports:
-            - containerPort: 8084
+            - containerPort: 8084 # 실제 톰캣 포트
           env:
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
@@ -34,7 +34,7 @@ metadata:
   name: {{ .Release.Name }}-auth-service
 spec:
   ports:
-    - port: 8084
-      targetPort: 8084
+    - port: 8084       # 서비스가 외부(Ingress)에 노출하는 포트
+      targetPort: 8084 # 파드의 containerPort로 전달
   selector:
     app: auth

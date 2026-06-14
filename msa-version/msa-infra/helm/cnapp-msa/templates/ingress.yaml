@@ -8,8 +8,7 @@ spec:
   rules:
   - http:
       paths:
-      # 1. 회원가입/로그인 전용 경로 (msa-auth-service로 직접 연결)
-      # 가장 구체적인 경로를 최상단에 두어 우선순위를 확보합니다.
+      # 1. 인증 관련 (8084 서비스 포트로 전달)
       - path: /api/signup
         pathType: Prefix
         backend:
@@ -25,7 +24,7 @@ spec:
             port:
               number: 8084
 
-      # 2. 에이전트 데이터 수집 경로
+      # 2. 에이전트 수집 (8081 서비스 포트로 전달)
       - path: /api/v1/ingestion
         pathType: Prefix
         backend:
@@ -34,7 +33,7 @@ spec:
             port:
               number: 8081
 
-      # 3. 대시보드 데이터 조회 경로
+      # 3. 대시보드 API (80 서비스 포트로 전달)
       - path: /api/v1/dashboard
         pathType: Prefix
         backend:
@@ -43,7 +42,7 @@ spec:
             port:
               number: 80
 
-      # 4. 프론트엔드 (나머지 모든 경로)
+      # 4. 프론트엔드 (80 서비스 포트로 전달)
       - path: /
         pathType: Prefix
         backend:
