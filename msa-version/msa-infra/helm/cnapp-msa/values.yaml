@@ -12,7 +12,7 @@ frontend:
 
 # --- MSA Backend Services ---
 ingestion:
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: ckstj8027/cnapp-msa-ingestion
     tag: latest
@@ -20,7 +20,7 @@ ingestion:
     port: 8081
 
 analysis:
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: ckstj8027/cnapp-msa-analysis
     tag: latest
@@ -28,18 +28,19 @@ analysis:
     port: 8082
 
 query:
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: ckstj8027/cnapp-msa-query
     tag: latest
   service:
-    port: 8083
+    type: ClusterIP
+    port: 80
 
 # --- Ingress Settings ---
 ingress:
   enabled: true
   className: "nginx"
-  host: "localhost" # 또는 사용자 클러스터 도메인
+  host: "" # 모든 호스트/IP 접속 허용을 위해 비워둡니다.
 
 # --- Infrastructure Settings ---
 kafka:
