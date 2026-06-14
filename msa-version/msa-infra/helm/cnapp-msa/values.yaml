@@ -1,0 +1,41 @@
+global:
+  namespace: cnapp-msa
+
+ingestion:
+  replicaCount: 2
+  image:
+    repository: cnapp-msa-ingestion
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8081
+
+analysis:
+  replicaCount: 3
+  image:
+    repository: cnapp-msa-analysis
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8082
+
+query:
+  replicaCount: 2
+  image:
+    repository: cnapp-msa-query
+    tag: latest
+  service:
+    type: LoadBalancer
+    port: 80
+
+kafka:
+  bootstrapServers: "kafka-service:9092"
+
+database:
+  url: "jdbc:postgresql://postgresql-service:5432/cnapp"
+  user: "postgres"
+  pass: "password"
+
+redis:
+  host: "redis-service"
+  port: 6379

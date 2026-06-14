@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-analysis
+  labels:
+    app: analysis
+spec:
+  replicas: {{ .Values.analysis.replicaCount }}
+  selector:
+    matchLabels:
+      app: analysis
+  template:
+    metadata:
+      labels:
+        app: analysis
+    spec:
+      containers:
+        - name: analysis
+          image: "{{ .Values.analysis.image.repository }}:{{ .Values.analysis.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.analysis.service.port }}
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: {{ .Values.kafka.bootstrapServers }}
+            - name: JDBC_URL
+              value: {{ .Values.database.url }}
+            - name: JDBC_USER
+              value: {{ .Values.database.user }}
+            - name: JDBC_PASS
+              value: {{ .Values.database.pass }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-analysis
+spec:
+  type: {{ .Values.analysis.service.type }}
+  ports:
+    - port: {{ .Values.analysis.service.port }}
+      targetPort: {{ .Values.analysis.service.port }}
+  selector:
+    app: analysis

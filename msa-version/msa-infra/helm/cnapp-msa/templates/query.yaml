@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-query
+  labels:
+    app: query
+spec:
+  replicas: {{ .Values.query.replicaCount }}
+  selector:
+    matchLabels:
+      app: query
+  template:
+    metadata:
+      labels:
+        app: query
+    spec:
+      containers:
+        - name: query
+          image: "{{ .Values.query.image.repository }}:{{ .Values.query.image.tag }}"
+          ports:
+            - containerPort: 8083
+          env:
+            - name: JDBC_URL
+              value: {{ .Values.database.url }}
+            - name: JDBC_USER
+              value: {{ .Values.database.user }}
+            - name: JDBC_PASS
+              value: {{ .Values.database.pass }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-query
+spec:
+  type: {{ .Values.query.service.type }}
+  ports:
+    - port: {{ .Values.query.service.port }}
+      targetPort: 8083
+  selector:
+    app: query

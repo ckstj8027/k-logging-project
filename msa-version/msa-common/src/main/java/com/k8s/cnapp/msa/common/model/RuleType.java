@@ -1,0 +1,14 @@
+package com.k8s.cnapp.msa.common.model;
+
+public enum RuleType {
+    PRIVILEGED_DENY,
+    RUN_AS_ROOT_DENY,
+    IMAGE_LATEST_TAG_DENY,
+    NAMESPACE_DEFAULT_DENY,
+    PORT_BLACKLIST,
+    EXTERNAL_IP_DENY,
+    REPLICA_MAX_LIMIT,
+    REPLICA_MIN_LIMIT,
+    CPU_LIMIT_CORES,
+    MEMORY_LIMIT_BYTES
+}

@@ -1,0 +1,15 @@
+image:
+  repository: ckstj8027/cnapp-agent
+  tag: latest
+  pullPolicy: Always
+
+# MSA Ingestion 서비스 주소 (기본값은 cnapp-msa 릴리즈 이름 기준)
+server:
+  url: "http://cnapp-msa-ingestion:8081/api/v1/ingestion/k8s"
+
+# 인증을 위한 API Key
+auth:
+  apiKey: "83da2482-30fc-454c-b22f-e0aa0b82af11"
+
+rbac:
+  create: true
