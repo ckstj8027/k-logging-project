@@ -2,9 +2,9 @@ spring:
   application:
     name: msa-query
   datasource:
-    url: ${JDBC_URL:jdbc:postgresql://postgresql-service:5432/cnapp}
-    username: ${JDBC_USER:postgres}
-    password: ${JDBC_PASS:password}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cnappdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -12,8 +12,8 @@ spring:
     show-sql: true
   data:
     redis:
-      host: ${REDIS_HOST:redis-service}
-      port: ${REDIS_PORT:6379}
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
 
 server:
   port: 8083

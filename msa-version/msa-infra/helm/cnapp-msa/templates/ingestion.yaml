@@ -21,14 +21,14 @@ spec:
           ports:
             - containerPort: {{ .Values.ingestion.service.port }}
           env:
-            - name: KAFKA_BOOTSTRAP_SERVERS
+            # Spring Boot 표준 환경변수 규격 사용
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               value: "{{ .Values.kafka.serviceName }}:{{ .Values.kafka.port }}"
-            # DB 연결 정보 명시적 주입
-            - name: JDBC_URL
+            - name: SPRING_DATASOURCE_URL
               value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
-            - name: JDBC_USER
+            - name: SPRING_DATASOURCE_USERNAME
               value: "{{ .Values.database.user }}"
-            - name: JDBC_PASS
+            - name: SPRING_DATASOURCE_PASSWORD
               value: "{{ .Values.database.pass }}"
 ---
 apiVersion: v1

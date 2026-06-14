@@ -21,17 +21,17 @@ spec:
           ports:
             - containerPort: {{ .Values.analysis.service.port }}
           env:
-            - name: KAFKA_BOOTSTRAP_SERVERS
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               value: "{{ .Values.kafka.serviceName }}:{{ .Values.kafka.port }}"
-            - name: JDBC_URL
+            - name: SPRING_DATASOURCE_URL
               value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
-            - name: JDBC_USER
+            - name: SPRING_DATASOURCE_USERNAME
               value: "{{ .Values.database.user }}"
-            - name: JDBC_PASS
+            - name: SPRING_DATASOURCE_PASSWORD
               value: "{{ .Values.database.pass }}"
-            - name: REDIS_HOST
+            - name: SPRING_DATA_REDIS_HOST
               value: "redis-service"
-            - name: REDIS_PORT
+            - name: SPRING_DATA_REDIS_PORT
               value: "6379"
 ---
 apiVersion: v1
