@@ -4,45 +4,40 @@ metadata:
   name: {{ .Release.Name }}-ingress
   annotations:
     kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Nginx Ingress Controller regex support
+    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   rules:
   - http:
       paths:
-      # 1. 인증/회원가입 분기
-      - path: /api/login
-        pathType: Prefix
+      # 1. 인증/회원가입 분기 (msa-auth-service)
+      # 프론트엔드가 /api/auth/signup 호출 시 여기로 매칭됨
+      - path: /api/auth/.*
+        pathType: ImplementationSpecific
         backend:
           service:
             name: {{ .Release.Name }}-auth-service
             port:
               number: 8084
-      - path: /api/signup
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Release.Name }}-auth-service
-            port:
-              number: 8084
-      # 2. 에이전트 수집 API 분기 (중요! ⭐)
-      - path: /api/v1/ingestion
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Release.Name }}-ingestion
-            port:
-              number: 8081
-      # 3. 대시보드 조회 API 분기
-      - path: /api/v1/dashboard
-        pathType: Prefix
+      # 2. 대시보드 API 분기 (msa-query)
+      - path: /api/v1/dashboard/.*
+        pathType: ImplementationSpecific
         backend:
           service:
             name: {{ .Release.Name }}-query
             port:
               number: 80
-      # 4. 프론트엔드 분기
-      - path: /
-        pathType: Prefix
+      # 3. 에이전트 수집 API 분기 (msa-ingestion)
+      - path: /api/v1/ingestion/.*
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: {{ .Release.Name }}-ingestion
+            port:
+              number: 8081
+      # 4. 프론트엔드 분기 (정적 파일 및 SvelteKit 라우팅)
+      - path: /.*
+        pathType: ImplementationSpecific
         backend:
           service:
             name: {{ .Release.Name }}-front-service
