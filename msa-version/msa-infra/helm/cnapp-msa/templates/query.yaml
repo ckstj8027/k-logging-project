@@ -17,15 +17,16 @@ spec:
       containers:
         - name: query
           image: "{{ .Values.query.image.repository }}:{{ .Values.query.image.tag }}"
+          imagePullPolicy: Always
           ports:
             - containerPort: 8083
           env:
             - name: JDBC_URL
-              value: {{ .Values.database.url | quote }}
+              value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
             - name: JDBC_USER
-              value: {{ .Values.database.user | quote }}
+              value: "{{ .Values.database.user }}"
             - name: JDBC_PASS
-              value: {{ .Values.database.pass | quote }}
+              value: "{{ .Values.database.pass }}"
             - name: REDIS_HOST
               value: "redis-service"
             - name: REDIS_PORT
@@ -36,9 +37,9 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}-query
 spec:
-  type: {{ .Values.query.service.type }}
+  type: {{ .Values.query.service.port | default "LoadBalancer" | quote }} # values.yaml의 query.service.port는 실제 포트 번호이므로 주의
   ports:
-    - port: {{ .Values.query.service.port }}
+    - port: 80
       targetPort: 8083
   selector:
     app: query

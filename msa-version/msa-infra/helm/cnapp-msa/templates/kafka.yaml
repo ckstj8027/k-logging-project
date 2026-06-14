@@ -1,41 +1,10 @@
-# Kafka & Zookeeper (가장 가벼운 단일 노드 방식)
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ .Release.Name }}-zookeeper
-spec:
-  selector:
-    matchLabels:
-      app: zookeeper
-  template:
-    metadata:
-      labels:
-        app: zookeeper
-    spec:
-      containers:
-        - name: zookeeper
-          image: {{ .Values.kafka.zookeeperImage }}
-          env:
-            - name: ALLOW_ANONYMOUS_LOGIN
-              value: "yes"
-          ports:
-            - containerPort: 2181
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: zookeeper-service
-spec:
-  ports:
-    - port: 2181
-  selector:
-    app: zookeeper
----
+# Apache Kafka 3.7.0 (KRaft Mode - No ZooKeeper)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}-kafka
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: kafka
@@ -47,24 +16,38 @@ spec:
       containers:
         - name: kafka
           image: {{ .Values.kafka.image }}
-          env:
-            - name: KAFKA_CFG_ZOOKEEPER_CONNECT
-              value: "zookeeper-service:2181"
-            - name: ALLOW_PLAINTEXT_LISTENER
-              value: "yes"
-            - name: KAFKA_CFG_LISTENERS
-              value: "PLAINTEXT://:9092"
-            - name: KAFKA_CFG_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://kafka-service:9092"
           ports:
-            - containerPort: 9092
+            - containerPort: {{ .Values.kafka.port }}
+            - containerPort: {{ .Values.kafka.controllerPort }}
+          env:
+            # KRaft 핵심 설정
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: "broker,controller"
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "1@localhost:{{ .Values.kafka.controllerPort }}"
+            - name: KAFKA_LISTENERS
+              value: "PLAINTEXT://:{{ .Values.kafka.port }},CONTROLLER://:{{ .Values.kafka.controllerPort }}"
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://{{ .Values.kafka.serviceName }}:{{ .Values.kafka.port }}"
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            # 메타데이터 로그 디렉토리
+            - name: KAFKA_LOG_DIRS
+              value: "/tmp/kafka-logs"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: kafka-service
+  name: {{ .Values.kafka.serviceName }}
 spec:
   ports:
-    - port: 9092
+    - port: {{ .Values.kafka.port }}
+      name: client
+    - port: {{ .Values.kafka.controllerPort }}
+      name: controller
   selector:
     app: kafka

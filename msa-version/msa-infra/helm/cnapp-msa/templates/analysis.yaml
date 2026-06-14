@@ -17,17 +17,18 @@ spec:
       containers:
         - name: analysis
           image: "{{ .Values.analysis.image.repository }}:{{ .Values.analysis.image.tag }}"
+          imagePullPolicy: Always
           ports:
             - containerPort: {{ .Values.analysis.service.port }}
           env:
             - name: KAFKA_BOOTSTRAP_SERVERS
-              value: {{ .Values.kafka_bootstrap_servers | quote }}
+              value: "{{ .Values.kafka.serviceName }}:{{ .Values.kafka.port }}"
             - name: JDBC_URL
-              value: {{ .Values.database.url | quote }}
+              value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
             - name: JDBC_USER
-              value: {{ .Values.database.user | quote }}
+              value: "{{ .Values.database.user }}"
             - name: JDBC_PASS
-              value: {{ .Values.database.pass | quote }}
+              value: "{{ .Values.database.pass }}"
             - name: REDIS_HOST
               value: "redis-service"
             - name: REDIS_PORT
@@ -38,7 +39,6 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}-analysis
 spec:
-  type: {{ .Values.analysis.service.type }}
   ports:
     - port: {{ .Values.analysis.service.port }}
       targetPort: {{ .Values.analysis.service.port }}

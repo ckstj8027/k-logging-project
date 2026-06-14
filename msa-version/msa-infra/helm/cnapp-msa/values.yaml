@@ -25,11 +25,14 @@ query:
   service:
     port: 80
 
-# --- 기존에 성공했던 가벼운 설정값들 ---
+# --- KRaft 기반 카프카 설정 (ZooKeeper 제거) ---
 kafka:
-  image: docker.io/bitnami/kafka
-  zookeeperImage: docker.io/bitnami/zookeeper
+  image: apache/kafka:3.7.0
+  serviceName: kafka-service
+  port: 9092
+  controllerPort: 9093
 
+# --- PostgreSQL 설정 ---
 database:
   image: postgres:15
   dbName: cnappdb
@@ -37,5 +40,6 @@ database:
   pass: password
   storage: 1Gi
 
+# --- Redis 설정 ---
 redis:
   image: redis:7.0-alpine

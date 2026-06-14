@@ -17,18 +17,25 @@ spec:
       containers:
         - name: ingestion
           image: "{{ .Values.ingestion.image.repository }}:{{ .Values.ingestion.image.tag }}"
+          imagePullPolicy: Always
           ports:
             - containerPort: {{ .Values.ingestion.service.port }}
           env:
             - name: KAFKA_BOOTSTRAP_SERVERS
-              value: {{ .Values.kafka_bootstrap_servers | quote }}
+              value: "{{ .Values.kafka.serviceName }}:{{ .Values.kafka.port }}"
+            # DB 연결 정보 명시적 주입
+            - name: JDBC_URL
+              value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
+            - name: JDBC_USER
+              value: "{{ .Values.database.user }}"
+            - name: JDBC_PASS
+              value: "{{ .Values.database.pass }}"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-ingestion
 spec:
-  type: {{ .Values.ingestion.service.type }}
   ports:
     - port: {{ .Values.ingestion.service.port }}
       targetPort: {{ .Values.ingestion.service.port }}
