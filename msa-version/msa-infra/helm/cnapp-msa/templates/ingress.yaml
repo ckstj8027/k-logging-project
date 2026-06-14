@@ -4,20 +4,28 @@ metadata:
   name: {{ .Release.Name }}-ingress
   annotations:
     kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
-    # [필독] 모든 rewrite 설정을 제거하여 경로를 원본 그대로 보냅니다.
 spec:
   rules:
   - http:
       paths:
-      # 1. 인증/회원가입 (가장 먼저 매칭)
-      - path: /api/auth
+      # 1. 회원가입/로그인 전용 경로 (msa-auth-service로 직접 연결)
+      # 가장 구체적인 경로를 최상단에 두어 우선순위를 확보합니다.
+      - path: /api/signup
         pathType: Prefix
         backend:
           service:
             name: {{ .Release.Name }}-auth-service
             port:
               number: 8084
-      # 2. 에이전트 수집
+      - path: /api/login
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-auth-service
+            port:
+              number: 8084
+
+      # 2. 에이전트 데이터 수집 경로
       - path: /api/v1/ingestion
         pathType: Prefix
         backend:
@@ -25,7 +33,8 @@ spec:
             name: {{ .Release.Name }}-ingestion-service
             port:
               number: 8081
-      # 3. 대시보드 API
+
+      # 3. 대시보드 데이터 조회 경로
       - path: /api/v1/dashboard
         pathType: Prefix
         backend:
@@ -33,7 +42,8 @@ spec:
             name: {{ .Release.Name }}-query-service
             port:
               number: 80
-      # 4. 프론트엔드 (나머지 전체)
+
+      # 4. 프론트엔드 (나머지 모든 경로)
       - path: /
         pathType: Prefix
         backend:
