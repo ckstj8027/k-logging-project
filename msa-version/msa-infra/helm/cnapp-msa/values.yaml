@@ -27,8 +27,8 @@ query:
 
 # --- 기존에 성공했던 가벼운 설정값들 ---
 kafka:
-  image: docker.io/bitnami/kafka:3.4
-  zookeeperImage: docker.io/bitnami/zookeeper:3.8
+  image: docker.io/bitnami/kafka
+  zookeeperImage: docker.io/bitnami/zookeeper
 
 database:
   image: postgres:15
