@@ -1,16 +1,15 @@
-# [명세 준수] PostgreSQL 배포 및 강제 바인딩 PVC
+# [K-Sentry 공식 명세 준수] PostgreSQL
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Release.Name }}-postgres-pvc
+  name: msa-postgres-pvc
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 8Gi
-  # [핵심] 특정 PV를 콕 찍어서 바인딩 (이름 불일치 방지)
-  volumeName: {{ .Release.Name }}-postgres-pv
+  volumeName: msa-postgres-pv # [공식] PV 이름 강제 바인딩
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -21,7 +20,7 @@ spec:
     matchLabels:
       app: postgres
   strategy:
-    type: Recreate # DB는 한 번에 하나만 띄우도록 보장
+    type: Recreate
   template:
     metadata:
       labels:
@@ -32,11 +31,11 @@ spec:
           image: {{ .Values.database.image }}
           env:
             - name: POSTGRES_DB
-              value: {{ .Values.database.dbName }}
+              value: {{ .Values.database.dbName | quote }}
             - name: POSTGRES_USER
-              value: {{ .Values.database.user }}
+              value: {{ .Values.database.user | quote }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.database.pass }}
+              value: {{ .Values.database.pass | quote }}
           ports:
             - containerPort: 5432
           volumeMounts:
@@ -45,7 +44,7 @@ spec:
       volumes:
         - name: storage
           persistentVolumeClaim:
-            claimName: {{ .Release.Name }}-postgres-pvc
+            claimName: msa-postgres-pvc
 ---
 apiVersion: v1
 kind: Service

@@ -1,8 +1,8 @@
-# [명세 준수] 모든 인프라 PV 설정 통합
+# [K-Sentry 공식 명세 준수] 모든 인프라 PV 설정
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ .Release.Name }}-postgres-pv
+  name: msa-postgres-pv
 spec:
   capacity:
     storage: 8Gi
@@ -10,12 +10,12 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   hostPath:
-    path: "/mnt/data/msa-postgres"
+    path: "/mnt/data/postgres-msa" # [공식] /mnt/data/msa-postgres 아님
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ .Release.Name }}-kafka-pv
+  name: msa-kafka-pv
 spec:
   capacity:
     storage: 8Gi
@@ -23,12 +23,12 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   hostPath:
-    path: "/mnt/data/msa-kafka"
+    path: "/mnt/data/kafka-msa" # [공식] /mnt/data/msa-kafka 아님
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ .Release.Name }}-redis-pv
+  name: msa-redis-pv
 spec:
   capacity:
     storage: 8Gi
@@ -36,4 +36,4 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   hostPath:
-    path: "/mnt/data/msa-redis"
+    path: "/mnt/data/redis-msa" # [공식] /mnt/data/msa-redis 아님

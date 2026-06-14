@@ -1,15 +1,15 @@
-# [명세 준수] Kafka 강제 바인딩 PVC 및 배포
+# [K-Sentry 공식 명세 준수] Kafka (No ZooKeeper)
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Release.Name }}-kafka-pvc
+  name: data-kafka-service-0 # [공식] 예상 PVC 이름 준수
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 8Gi
-  volumeName: {{ .Release.Name }}-kafka-pv
+  volumeName: msa-kafka-pv # [공식] PV 이름 강제 바인딩
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -52,4 +52,4 @@ spec:
       volumes:
         - name: storage
           persistentVolumeClaim:
-            claimName: {{ .Release.Name }}-kafka-pvc
+            claimName: data-kafka-service-0
