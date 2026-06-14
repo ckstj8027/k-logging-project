@@ -19,10 +19,10 @@ spec:
           image: "{{ .Values.analysis.image.repository }}:{{ .Values.analysis.image.tag }}"
           imagePullPolicy: Always
           ports:
-            - containerPort: {{ .Values.analysis.service.port }}
+            - containerPort: 8082
           env:
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-              value: "{{ .Values.kafka.serviceName }}:{{ .Values.kafka.port }}"
+              value: "kafka-service:9092"
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
             - name: SPRING_DATASOURCE_USERNAME
@@ -37,10 +37,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-analysis
+  name: {{ .Release.Name }}-analysis-service
 spec:
   ports:
-    - port: {{ .Values.analysis.service.port }}
-      targetPort: {{ .Values.analysis.service.port }}
+    - port: 8082
+      targetPort: 8082
   selector:
     app: analysis
