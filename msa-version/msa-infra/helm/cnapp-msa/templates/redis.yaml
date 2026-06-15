@@ -1,8 +1,8 @@
-# [K-Sentry 공식 명세 준수] Redis (최종 고정)
+# [K-Sentry 절대 명세 고정] Redis Deployment & Service
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: redis-data-redis-service-master-0
+  name: redis-data-redis-service-master-0 # [명세 고정]
 spec:
   accessModes:
     - ReadWriteOnce
@@ -15,7 +15,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-redis
+  name: redis-deployment # [명세 고정]
 spec:
   selector:
     matchLabels:
