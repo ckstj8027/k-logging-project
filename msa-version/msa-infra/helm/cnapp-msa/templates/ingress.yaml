@@ -4,6 +4,7 @@ metadata:
   name: {{ .Release.Name }}-ingress
   annotations:
     kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+    argocd.argoproj.io/health-options: Skip
 spec:
   ingressClassName: {{ .Values.ingress.className | quote }}
   rules:
@@ -52,7 +53,3 @@ spec:
             name: {{ .Release.Name }}-front-service
             port:
               number: 80
-status:
-  loadBalancer:
-    ingress:
-      - ip: 127.0.0.1
