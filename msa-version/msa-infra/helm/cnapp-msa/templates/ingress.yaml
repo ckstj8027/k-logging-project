@@ -4,8 +4,7 @@ metadata:
   name: {{ .Release.Name }}-ingress
   annotations:
     kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
-
-    nginx.ingress.kubernetes.io/upstream-vhost: "192.168.56.30"
+    argocd.argoproj.io/health-options: Skip
 spec:
   ingressClassName: {{ .Values.ingress.className | quote }}
   rules:
