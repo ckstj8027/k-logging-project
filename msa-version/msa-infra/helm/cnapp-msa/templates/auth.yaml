@@ -14,12 +14,25 @@ spec:
       labels:
         app: auth
     spec:
+      # [추가] 인프라 대기 로직: DB가 준비될 때까지 앱 가동을 지연시킵니다.
+      initContainers:
+        - name: wait-for-infra
+          image: busybox
+          command: 
+            - sh
+            - -c
+            - |
+              until nc -z postgres-service 5432; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+              echo "Infra is ready. Starting Auth service."
       containers:
         - name: auth
           image: "{{ .Values.auth.image.repository }}:{{ .Values.auth.image.tag }}"
           imagePullPolicy: Always
           ports:
-            - containerPort: 8084 # 실제 톰캣 포트
+            - containerPort: 8084
           env:
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:postgresql://postgres-service:5432/{{ .Values.database.dbName }}"
@@ -34,7 +47,7 @@ metadata:
   name: {{ .Release.Name }}-auth-service
 spec:
   ports:
-    - port: 8084       # 서비스가 외부(Ingress)에 노출하는 포트
-      targetPort: 8084 # 파드의 containerPort로 전달
+    - port: 8084
+      targetPort: 8084
   selector:
     app: auth

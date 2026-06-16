@@ -14,13 +14,25 @@ spec:
       labels:
         app: ingestion
     spec:
+      # [추가] 인프라 대기 로직: DB와 Kafka가 준비될 때까지 앱 가동을 지연시킵니다.
+      initContainers:
+        - name: wait-for-infra
+          image: busybox
+          command: 
+            - sh
+            - -c
+            - |
+              until nc -z postgres-service 5432 && nc -z kafka-service 9092; do
+                echo "Waiting for Postgres and Kafka..."
+                sleep 2
+              done
+              echo "Infra is ready. Starting Ingestion service."
       containers:
         - name: ingestion
           image: "{{ .Values.ingestion.image.repository }}:{{ .Values.ingestion.image.tag }}"
           imagePullPolicy: Always
           ports:
             - containerPort: 8081
-          # 상태 체크 추가하여 502 Bad Gateway 방지
           readinessProbe:
             tcpSocket:
               port: 8081
