@@ -14,19 +14,6 @@ spec:
       labels:
         app: query
     spec:
-      # [추가] 인프라 대기 로직: DB와 Redis가 준비될 때까지 대기
-      initContainers:
-        - name: wait-for-infra
-          image: busybox
-          command: 
-            - sh
-            - -c
-            - |
-              until nc -z postgres-service 5432 && nc -z redis-service 6379; do
-                echo "Waiting for Postgres and Redis..."
-                sleep 2
-              done
-              echo "Infra is ready. Starting Query service."
       containers:
         - name: query
           image: "{{ .Values.query.image.repository }}:{{ .Values.query.image.tag }}"
