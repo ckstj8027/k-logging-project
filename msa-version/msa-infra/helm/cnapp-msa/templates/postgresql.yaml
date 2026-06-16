@@ -1,4 +1,4 @@
-# [K-Sentry 공식 명세] PostgreSQL PVC & Deployment (강제 보안 해제 버전)
+# [K-Sentry 공식 명세] PostgreSQL PVC & Deployment (데이터베이스 자동 생성 버전)
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -27,7 +27,6 @@ spec:
       labels:
         app: postgres
     spec:
-      # [핵심] 기존 볼륨에 남아있는 restrictive한 설정을 강제로 덮어씁니다.
       initContainers:
         - name: fix-pg-hba
           image: busybox
@@ -35,10 +34,13 @@ spec:
             - sh
             - -c
             - |
-              if [ -f /var/lib/postgresql/data/pg_hba.conf ]; then
-                echo "host all all 0.0.0.0/0 trust" >> /var/lib/postgresql/data/pg_hba.conf
-                echo "host all all ::/0 trust" >> /var/lib/postgresql/data/pg_hba.conf
+              DATA_DIR=/var/lib/postgresql/data
+              if [ -f $DATA_DIR/pg_hba.conf ]; then
+                echo "host all all 0.0.0.0/0 trust" >> $DATA_DIR/pg_hba.conf
+                echo "host all all ::/0 trust" >> $DATA_DIR/pg_hba.conf
                 echo "Forcefully updated pg_hba.conf to trust all"
+              else
+                echo "pg_hba.conf not found. Skipping (initialization will handle it)."
               fi
           volumeMounts:
             - name: storage
@@ -57,6 +59,20 @@ spec:
               value: "trust"
           ports:
             - containerPort: 5432
+          # [핵심 추가] 컨테이너가 뜬 직후, cnappdb가 없으면 강제로 만듭니다.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    until psql -U postgres -c "SELECT 1" > /dev/null 2>&1; do
+                      echo "Waiting for postgres..."
+                      sleep 2
+                    done
+                    psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'cnappdb'" | grep -q 1 || psql -U postgres -c "CREATE DATABASE cnappdb"
+                    echo "Database cnappdb ensured."
           volumeMounts:
             - name: storage
               mountPath: /var/lib/postgresql/data
