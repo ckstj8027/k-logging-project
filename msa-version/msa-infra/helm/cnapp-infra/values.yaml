@@ -1,0 +1,15 @@
+database:
+  image: postgres:15
+  dbName: cnappdb
+  user: postgres
+  pass: password
+  storage: 8Gi
+
+kafka:
+  image: apache/kafka:3.7.0
+  serviceName: kafka-service
+  port: 9092
+  controllerPort: 9093
+
+redis:
+  image: redis:7.0-alpine

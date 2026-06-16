@@ -50,19 +50,8 @@ ingress:
   className: "nginx"
   host: ""
 
-# --- Infrastructure Settings ---
-kafka:
-  image: apache/kafka:3.7.0
-  serviceName: kafka-service
-  port: 9092
-  controllerPort: 9093
-
+# --- DB Settings (Application needs to know these) ---
 database:
-  image: postgres:15
   dbName: cnappdb
   user: postgres
   pass: password
-  storage: 1Gi
-
-redis:
-  image: redis:7.0-alpine
