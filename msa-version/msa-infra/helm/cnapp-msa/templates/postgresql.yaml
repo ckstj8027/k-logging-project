@@ -1,4 +1,4 @@
-# [K-Sentry 절대 명세 고정] PostgreSQL Deployment & Service
+# [K-Sentry 공식 명세] PostgreSQL PVC & Deployment
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -37,7 +37,6 @@ spec:
               value: {{ .Values.database.user | quote }}
             - name: POSTGRES_PASSWORD
               value: {{ .Values.database.pass | quote }}
-            # [해결] pg_hba.conf 보안 제한을 해제하여 모든 IP로부터의 접속을 허용합니다.
             - name: POSTGRES_HOST_AUTH_METHOD
               value: "trust"
           ports:

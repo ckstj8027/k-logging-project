@@ -1,4 +1,4 @@
-# [K-Sentry 공식 명세 준수] 모든 인프라 PV 설정 (최종 고정)
+# [K-Sentry 공식 명세] 모든 인프라 PV 통합 정의
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -9,7 +9,7 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: manual # [추가] SC 충돌 방지
+  storageClassName: manual
   hostPath:
     path: "/mnt/data/postgres-msa"
 ---
