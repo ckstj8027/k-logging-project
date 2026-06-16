@@ -52,3 +52,7 @@ spec:
             name: {{ .Release.Name }}-front-service
             port:
               number: 80
+status:
+  loadBalancer:
+    ingress:
+      - ip: 127.0.0.1
