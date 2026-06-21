@@ -95,6 +95,8 @@ sequenceDiagram
     Scanner->>DB_Alert: 위반 사항 발견 시 중복 체크 후 경고 생성/저장
 ```
 
+
+
 ---
 
 ### [View B] 세부 컴포넌트 아키텍처
