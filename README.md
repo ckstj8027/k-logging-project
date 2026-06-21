@@ -99,18 +99,9 @@ AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 실시간 D
 
 ---
 
-
-
-멀티 테넌시 구조를 기반으로, 모든 핵심 테이블(`pod_profiles`, `alerts`, `policies`, `users` 등)은 `tenant_id`를 외래 키로 사용하여 고객사별 데이터 격리를 구현했습니다.
-
- 데이터 무결성(3NF)과 대규모 조회 성능 최적화를 동시에 만족시키기 위해 논리적 설계와 물리적 성능 설계를 분리한 하이브리드 구조를 채택했습니다.
-
----
-
 ### 1. Database 설계
 
-- 전체 도메인 모델은 제3정규형(3NF) 기반으로 설계
-- 테넌트 기반 SaaS 구조에서 데이터 무결성과 정합성 확보
+- 멀티 테넌시 구조를 기반으로, 모든 핵심 테이블(`pod_profiles`, `alerts`, `policies`, `users` 등)은 `tenant_id`를 외래 키로 사용하여 고객사별 데이터 격리를 구현했습니다.
 - 주요 엔티티: `Tenants`, `Users`, `Policies`, `Alerts`
 - 조회 중심 테이블(`pod_profiles`)은 성능 최적화를 위해 반정규화 적용(2NF)
 - 코드 레벨에서는 `@Embeddable (AssetContext)`를 활용하여 객체지향 구조 및 재사용성 유지
@@ -166,16 +157,6 @@ AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 실시간 D
 
 - `last_seen_at` 기반 인덱스 정렬 구조 설계
 - 별도의 Sort 없이 Index Scan만으로 정렬 처리
-
----
-
-### 4. 결과
-
-- 3NF 기반 데이터 무결성 확보
-- 선택적 반정규화로 조회 성능 최적화 (JOIN 비용 제거)
-- Covering Index로 테이블 접근 제거
-- Index Range Scan+Keyset Pagination + Index Sorting 결합으로 페이징/정렬 병목 제거
-- 멀티 테넌시 기반 SaaS 확장 구조 지원
 
 ---
 
