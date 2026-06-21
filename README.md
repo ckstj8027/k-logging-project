@@ -60,7 +60,100 @@ AI서버는 LangGraph 기반 워크플로우 내에서 메인 LLM이 실시간 D
 * AI Server: 수집된 실시간 자산 데이터와 보안 지식베이스(RAG)를 융합 분석하여, 위협 분석 및 해결책 제시.
 
 
-#
+
+---
+
+##   view
+
+### [View A] 기능 중심 동작 흐름
+에이전트로부터 전송된 데이터가 저장되고, 분석을 거쳐 경고(Alert)로 생성되기까지의 기능적 데이터 흐름입니다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Agent as K8s Cluster Agent
+    participant Controller as Log Ingestion API
+    participant Queue1 as Queue: ingestion.raw
+    participant Processor as Log Processing Service
+    participant DB_Profile as DB: Asset Profiles
+    participant Queue2 as Queue: security.scan
+    participant Scanner as Security Scanner
+    participant DB_Alert as DB: Alerts
+
+    Agent->>Controller: POST /api/v1/ingestion/raw (JSON Snapshot)
+    Note over Controller: Tenant API Key 인증 및 컨텍스트 매핑
+    Controller->>Queue1: 1차 적재 (비동기 큐 송신)
+    Queue1->>Processor: 메시지 수집 및 가공 시작
+    Processor->>DB_Profile: 변경/삭제 사항 비교 후 K8s 자산 적재 (Update Delta)
+    Note over Processor: DB 적재 후 SHA-256 해시 비교로 실제 변경 식별
+    rect rgb(240, 240, 240)
+        Note over Processor, Queue2: 실제 자산 정보 변경 발생 시에만 트리거
+        Processor->>Queue2: 2차 적재 (스캔 요청 큐 송신)
+    end
+    Queue2->>Scanner: 변경된 자산 ID 및 스캔 요청 수집
+    Scanner->>Scanner: 비동기 정밀 스캔 & 보안 정책 평가 (Policy Engine)
+    Scanner->>DB_Alert: 위반 사항 발견 시 중복 체크 후 경고 생성/저장
+```
+
+---
+
+### [View B] 세부 컴포넌트 아키텍처
+어떤 클래스가 특정 큐에 데이터를 **발행(Produce)**하고 어떤 클래스가 **소비(Consume)**하는지, 그리고 내부 서비스 간 **호출 관계**와 **영속화(DB)** 파이프라인의 연계 구조를 화살표 흐름과 번호로 상세히 표현한 아키텍처 설계도입니다.
+
+```mermaid
+graph TD
+    %% 외부 엔트리
+    Agent[K8s Cluster Agent] -->|1. HTTP POST raw JSON| LIC[LogIngestionController]
+
+    %% Ingestion Queue 영역
+    subgraph Ingestion_Queue_Pipeline [Ingestion Queue Pipeline]
+        LIC -->|2. Produce: IngestionRequestMessage| Q_Raw(("ingestion.raw.queue"))
+        Q_Raw -->|3. Consume: @RabbitListener| Worker[IngestionWorker]
+    end
+
+    %% Ingestion Processing & DB 적재 영역
+    subgraph Ingestion_Processing [Asset Processing & Storage]
+        Worker -->|4. Calls processRawData| LPS[LogProcessingService]
+        LPS -->|5. Save Asset Profiles| AssetRepo[Asset Profiles Repositories]
+    end
+
+    %% Scan Queue 영역
+    subgraph Scan_Queue_Pipeline [Scan Queue Pipeline]
+        LPS -->|6. Calls publishScanRequest| Publisher[RabbitSecurityEventPublisher]
+        Publisher -->|7. Produce: ScanRequestEvent| Q_Scan(("security.scan.requests"))
+        Q_Scan -->|8. Consume: @RabbitListener| Scanner[SecurityScannerService]
+    end
+
+    %% Policy Engine & Alert 적재 영역
+    subgraph Policy_Evaluation [Security Scan & Alerts]
+        Scanner -->|9. Calls evaluate| Engine[PolicyEngine]
+        Engine -->|10. Apply Security Rules| Policies[11 Security Policies]
+        Scanner -->|11. Save New Alerts| AlertRepo[AlertRepository]
+    end
+
+    %% Database
+    subgraph Database [PostgreSQL Database]
+        AssetRepo -->|JPA Persist| PG_Asset[(Asset Profile Tables)]
+        AlertRepo -->|JPA Persist| PG_Alert[(Alerts Table)]
+    end
+
+    %% 스타일 정의
+    style Q_Raw fill:#ffe6cc,stroke:#d79b00,stroke-width:2px;
+    style Q_Scan fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    style LIC fill:#d5e8d4,stroke:#82b366,stroke-width:2px;
+    style Worker fill:#e8f5e9,stroke:#4caf50,stroke-width:2px;
+    style LPS fill:#fff2cc,stroke:#d6b656,stroke-width:2px;
+    style Publisher fill:#f8cecc,stroke:#b85450,stroke-width:2px;
+    style Scanner fill:#ede7f6,stroke:#673ab7,stroke-width:2px;
+    style PG_Asset fill:#f5f5f5,stroke:#666666,stroke-width:1px;
+    style PG_Alert fill:#f5f5f5,stroke:#666666,stroke-width:1px;
+```
+
+---
+
+
+
+
 
 ---
 # Agent
