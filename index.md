@@ -306,7 +306,7 @@ graph LR
 
 ---
 
-##  4. 트러블 슈팅 성과 및 포트폴리오 요약
+##  4. 성과
 
 1. **로그 및 메트릭 옵저버빌리티 완성**: Prometheus, Grafana, Loki 로깅 아키텍처를 도입하여 복잡하게 분산된 MSA 환경의 병목 원인을 수분 만에 추적 및 분석 가능하도록 관제 시스템 확보.
 2. **Downward API & Init Container를 통한 동적 IP 인증 해결**: K8s Pod의 유동 IP 문제를 Downward API 환경변수 매핑 및 busybox 초기 설정 주입 기법으로 우회하여 pg_hba.conf 접속 문제와 DB 보안 무결성을 완벽 확보.
