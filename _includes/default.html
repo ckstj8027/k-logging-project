@@ -23,8 +23,9 @@
       mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
       function renderMermaidDiagrams() {
-        // Jekyll 파서가 code 블록이나 pre 블록으로 감싸버린 요소를 모두 타겟팅
-        const blocks = document.querySelectorAll('pre code, pre');
+        // 지킬이 마크다운을 감싸는 모든 종류의 코드 블록 요소를 타겟팅 (.highlighter-rouge 포함)
+        const selectors = 'pre code, pre, .highlighter-rouge, .language-plaintext, .language-mermaid';
+        const blocks = document.querySelectorAll(selectors);
         let index = 0;
         const processed = new Set();
 
@@ -32,11 +33,12 @@
           if (processed.has(block)) return;
 
           let text = block.innerText || block.textContent;
+          if (!text) return;
           
-          // Jekyll 빌드 시 깨진 HTML 특수 인코딩 문자열 원상 복구
+          // 1. 지킬 빌드 시 깨진 HTML 특수 인코딩 문자열(&gt;, &lt;) 원상 복구
           text = text.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
           
-          // 공백 정제 후 머메이드 문법 패턴 감지
+          // 2. 불필요한 공백 제거 및 머메이드 문법 감지
           let cleanedText = text.replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ").trim();
 
           if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText) || cleanedText.includes("graph TD") || cleanedText.includes("graph LR")) {
@@ -46,32 +48,39 @@
               text = text.substring(startIndex);
             }
 
-            // 고유한 Mermaid 컨테이너 div 생성
+            // 3. 고유한 Mermaid 컨테이너 div 생성
             const div = document.createElement('div');
             div.className = 'mermaid';
-            div.id = 'mermaid-dynamic-' + index++;
+            div.id = 'mermaid-render-id-' + index++;
             div.textContent = text.trim();
             
-            // Jekyll이 생성한 바깥쪽 하이라이터 박스 찾기
+            // 4. 지킬이 생성한 가장 바깥쪽 하이라이터 박스(.highlighter-rouge 등)를 찾아서 통째로 교체
             const targetContainer = block.closest('.highlighter-rouge') || block.closest('pre') || block;
             
             if (!processed.has(targetContainer)) {
-              targetContainer.parentNode.replaceChild(div, targetContainer);
-              processed.add(targetContainer);
-              processed.add(block);
+              const parent = targetContainer.parentNode;
+              if (parent) {
+                parent.replaceChild(div, targetContainer);
+                processed.add(targetContainer);
+                processed.add(block);
+              }
             }
           }
         });
 
-        // 렌더링 시작
+        // 5. 치환 완료 후 최종 렌더링 실행
         mermaid.run();
       }
 
+      // DOM이 로드되었을 때와 완전히 정착했을 때(지킬 테마 충돌 우회) 모두 실행되도록 안전장치 마련
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", renderMermaidDiagrams);
       } else {
         renderMermaidDiagrams();
       }
+      window.addEventListener("load", function() {
+        setTimeout(renderMermaidDiagrams, 100);
+      });
     </script>
 
     <style>
