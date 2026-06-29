@@ -1,6 +1,3 @@
----
-layout: default
----
 
 # [Troubleshooting ] K-Sentry MSA 전환 프로젝트
 
