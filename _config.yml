@@ -1,8 +1,12 @@
 # 파일 위치: _config.yml
 
-# 1. 테마
+# 1. 원격으로 Minimal Mistakes 테마 로드
 remote_theme: "mmistakes/minimal-mistakes@4.24.0"
-minimal_mistakes_skin: "default" # 스킨 선택 (air, aqua, contrast, dark 등 가능)
+minimal_mistakes_skin: "default"
 
-# 2. 테마 내장 Mermaid 기능 활성화
+# 2. 테마 내장 Mermaid 및 자바스크립트 허용 (매우 중요)
 mermaid: true
+
+# 3. 깃허브 페이지 빌드 세부 설정
+sass:
+  style: compressed
