@@ -1,7 +1,8 @@
-remote_theme: jekyll/jekyll-theme-cayman
+# 파일 위치: _config.yml
 
-defaults:
-  - scope:
-      path: ""
-    values:
-      layout: "default"
+# 1. 테마
+remote_theme: "mmistakes/minimal-mistakes@4.24.0"
+minimal_mistakes_skin: "default" # 스킨 선택 (air, aqua, contrast, dark 등 가능)
+
+# 2. 테마 내장 Mermaid 기능 활성화
+mermaid: true
