@@ -3,7 +3,7 @@ layout: default
 ---
 
 
-# [Troubleshooting ] K-Sentry MSA 전환 프로젝트
+# [Troubleshooting ] K-Sentry MSA 전환 과정
 
 이 문서는 K-Sentry 플랫폼을 모놀리식에서 MSA 구조로 전환하는 과정에서 마주했던 **3가지 시스템 장애**의 상세 현상, 가설 수립 및 검증 과정, 그리고 이를 해결하기 위해 아키텍처적으로 개선한 실제 코드와 설정 파일 튜닝을 정리한 기술 포트폴리오입니다.
 
