@@ -1,0 +1,7 @@
+remote_theme: jekyll/jekyll-theme-cayman
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: "default"
