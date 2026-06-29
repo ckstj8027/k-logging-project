@@ -3,34 +3,39 @@
   mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
   document.addEventListener("DOMContentLoaded", function() {
-    // 1. pre 태그뿐만 아니라 Jekyll이 감싸버린 highlight 클래스까지 모두 타겟으로 잡습니다.
-    const codeBlocks = document.querySelectorAll('pre, .highlight, .highlighter-rouge');
+    // 1. Jekyll 테마가 코드 블록을 감싸는 모든 요소(.highlighter-rouge, pre, code)를 전부 탐색합니다.
+    const blocks = document.querySelectorAll('.highlighter-rouge, pre, code');
     let index = 0;
-    const processed = new Set(); // 중복 변환 방지
-    
-    codeBlocks.forEach((block) => {
+    const processed = new Set();
+
+    blocks.forEach((block) => {
       if (processed.has(block)) return;
 
-      // 2. 내부의 모든 HTML 태그를 무시하고 오직 '순수 텍스트'만 추출합니다.
+      // 2. 내부의 모든 HTML 태그(span 등)를 무시하고 눈에 보이는 순수 텍스트만 추출합니다.
       let text = block.innerText || block.textContent;
       
-      // 3. 눈에 안 보이는 유령 공백 제거 및 줄바꿈 공백을 하나로 압축하여 검사
+      // 3. 줄바꿈과 유령 공백을 세척합니다.
       let cleanedText = text
         .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
       
-      // 4. 어떤 구조 안에 갇혀있든 graph나 flowchart로 시작하면 머메이드로 인식
-      if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText)) {
+      // 4. [검사 조건 완화] 텍스트가 graph, flowchart로 시작하거나 문동에 mermaid가 포함되어 있으면 타겟으로 지정
+      if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText) || cleanedText.includes("graph TD") || cleanedText.includes("graph LR")) {
+        
+        // 5. 이미 쪼개진 텍스트에서 혹시 모를 앞뒤 기호나 찌꺼기 글자를 정제하고 오직 다이어그램 문법만 추출
+        const startIndex = text.search(/(graph|flowchart|sequenceDiagram|gantt)/i);
+        if (startIndex !== -1) {
+          text = text.substring(startIndex);
+        }
+
         const div = document.createElement('div');
         div.className = 'mermaid';
         div.id = 'mermaid-' + index++;
+        div.textContent = text.trim();
         
-        // 원본 텍스트의 유령 공백만 세척해서 주입
-        div.textContent = text.replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ").trim();
-        
-        // 5. 상위 부모 중 Jekyll이 만든 가장 바깥쪽 코드 블록 전체를 복잡한 구조째로 바꿉니다.
-        const targetContainer = block.closest('.highlighter-rouge') || block;
+        // 6. Jekyll이 지저분하게 쪼개놓은 최상위 div container를 찾아서 통째로 갈아 끼웁니다.
+        const targetContainer = block.closest('.highlighter-rouge') || block.closest('pre') || block;
         
         if (!processed.has(targetContainer)) {
           targetContainer.parentNode.replaceChild(div, targetContainer);
@@ -40,7 +45,7 @@
       }
     });
 
-    // 6. 변환 완료 후 강제 렌더링
+    // 7. 교체 후 즉시 렌더링 실행
     mermaid.run();
   });
 </script>
