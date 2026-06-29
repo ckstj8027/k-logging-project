@@ -3,25 +3,27 @@
   mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
   document.addEventListener("DOMContentLoaded", function() {
-    // 1. 클래스명과 상관없이 pre 태그 내부 내용에 머메이드 문법(graph, sequenceDiagram 등)이 있는지 전부 뒤집니다.
+    // 모든 pre 태그를 가져옵니다.
     const preBlocks = document.querySelectorAll('pre');
     let index = 0;
     
     preBlocks.forEach((pre) => {
-      const text = pre.textContent.trim();
-      // 내부 텍스트가 머메이드 문법으로 시작하는지 확인
-      if (text.startsWith('graph') || text.startsWith('flowchart') || text.startsWith('sequenceDiagram')) {
+      // 내부에 불필요한 줄바꿈, 공백, 특수 공백(&nbsp;)을 제거하고 텍스트만 추출
+      const text = pre.textContent.replace(/\u00a0/g, " ").trim();
+      
+      // graph, flowchart, sequenceDiagram 등의 단어가 포함되어 있는지 유연하게 검사
+      if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(text)) {
         const div = document.createElement('div');
         div.className = 'mermaid';
         div.id = 'mermaid-' + index++;
         div.textContent = text;
         
-        // 기존 pre 태그를 mermaid div로 깔끔하게 교체
+        // 기존 pre 태그를 mermaid div로 교체
         pre.parentNode.replaceChild(div, pre);
       }
     });
 
-    // 2. 변환이 끝난 후 그래프를 한 번에 렌더링
+    // 교체 완료 후 그래프 렌더링
     mermaid.run();
   });
 </script>
