@@ -1,5 +1,7 @@
 # 파일 위치: _config.yml
-remote_theme: jekyll/jekyll-theme-cayman
+
+# GitHub 공식 pages-themes 조직의 cayman 저장소와 검증된 v0.2.0 버전을 명시합니다.
+remote_theme: "pages-themes/cayman@v0.2.0"
 
 defaults:
   - scope:
