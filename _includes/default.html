@@ -22,8 +22,8 @@
       import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js';
       mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
-      function renderMermaidDiagrams() {
-        // 지킬이 마크다운을 감싸는 모든 종류의 코드 블록 요소를 타겟팅 (.highlighter-rouge 포함)
+      function forceRenderMermaid() {
+        // 지킬 렌더러가 감싸버릴 수 있는 모든 코드 블록 셀렉터를 동시 확보
         const selectors = 'pre code, pre, .highlighter-rouge, .language-plaintext, .language-mermaid';
         const blocks = document.querySelectorAll(selectors);
         let index = 0;
@@ -35,12 +35,12 @@
           let text = block.innerText || block.textContent;
           if (!text) return;
           
-          // 1. 지킬 빌드 시 깨진 HTML 특수 인코딩 문자열(&gt;, &lt;) 원상 복구
+          // 1. 지킬 빌드 시 깨져서 들어간 HTML 특수 문자 부호들(--&gt;, ==&gt;) 원상 복구
           text = text.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
           
-          // 2. 불필요한 공백 제거 및 머메이드 문법 감지
           let cleanedText = text.replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ").trim();
 
+          // 2. 텍스트 내부에 머메이드 문법 문장구조가 잡히는지 검사
           if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText) || cleanedText.includes("graph TD") || cleanedText.includes("graph LR")) {
             
             const startIndex = text.search(/(graph|flowchart|sequenceDiagram|gantt)/i);
@@ -48,13 +48,13 @@
               text = text.substring(startIndex);
             }
 
-            // 3. 고유한 Mermaid 컨테이너 div 생성
+            // 3. 순수 텍스트 데이터를 주입한 커스텀 머메이드 div 생성
             const div = document.createElement('div');
             div.className = 'mermaid';
-            div.id = 'mermaid-render-id-' + index++;
+            div.id = 'mermaid-render-engine-' + index++;
             div.textContent = text.trim();
             
-            // 4. 지킬이 생성한 가장 바깥쪽 하이라이터 박스(.highlighter-rouge 등)를 찾아서 통째로 교체
+            // 4. 지킬이 지저분하게 감싸놓은 래퍼 박스(.highlighter-rouge 등)를 통째로 갈아끼움
             const targetContainer = block.closest('.highlighter-rouge') || block.closest('pre') || block;
             
             if (!processed.has(targetContainer)) {
@@ -68,18 +68,18 @@
           }
         });
 
-        // 5. 치환 완료 후 최종 렌더링 실행
+        // 5. 렌더링 강제 가동
         mermaid.run();
       }
 
-      // DOM이 로드되었을 때와 완전히 정착했을 때(지킬 테마 충돌 우회) 모두 실행되도록 안전장치 마련
+      // DOM 로드 즉시 실행 및 레이아웃 밀림 방지 더블 트리거 레이어 세팅
       if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", renderMermaidDiagrams);
+        document.addEventListener("DOMContentLoaded", forceRenderMermaid);
       } else {
-        renderMermaidDiagrams();
+        forceRenderMermaid();
       }
       window.addEventListener("load", function() {
-        setTimeout(renderMermaidDiagrams, 100);
+        setTimeout(forceRenderMermaid, 150);
       });
     </script>
 
