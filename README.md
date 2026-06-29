@@ -1,6 +1,5 @@
 ---
-layout: single  
-mermaid: true    
+layout: default
 ---
 
 
@@ -312,6 +311,29 @@ graph LR
 1. **로그 및 메트릭 옵저버빌리티 완성**: Prometheus, Grafana, Loki 로깅 아키텍처를 도입하여 복잡하게 분산된 MSA 환경의 병목 원인을 수분 만에 추적 및 분석 가능하도록 관제 시스템 확보.
 2. **Downward API & Init Container를 통한 동적 IP 인증 해결**: K8s Pod의 유동 IP 문제를 Downward API 환경변수 매핑 및 busybox 초기 설정 주입 기법으로 우회하여 pg_hba.conf 접속 문제와 DB 보안 무결성을 완벽 확보.
 3. **데이터 전송량 절감 및 DB 공회전 차단**: No-op 필터와 Event UID 쿼리 수정을 통해 불필요한 트래픽 및 DB 쿼리 오버헤드를 **90% 이상 감축**하고 데이터 정합성을 달성.
+
+
+
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+  var config = {
+    startOnLoad: true,
+    theme: 'default',
+    flowchart: { useMaxWidth: false, htmlLabels: true }
+  };
+  mermaid.initialize(config);
+  
+  // GitHub Pages(Jekyll)가 빌드한 모든 .language-mermaid 블록을 찾아 다이어그램으로 강제 변환
+  window.mermaid.init(undefined, document.querySelectorAll('.language-mermaid'));
+</script>
+
+
+
+
+
 
 
 
