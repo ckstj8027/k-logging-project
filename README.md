@@ -1,8 +1,6 @@
 ---
-layout: post
-title: "Mermaid 다이어그램 띄우기"
-date: 2026-06-29
-mermaid: true   
+layout: default  
+mermaid: true
 ---
 
 
