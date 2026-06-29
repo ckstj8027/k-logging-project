@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang | default: "en-US" }}">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% seo %}
+    <link rel="stylesheet" href="{{ '/assets/css/style.css?v=' | append: site.github.build_revision | relative_url }}">
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      {% if site.title and site.title != string_of_spaces %}
+      <h1><a href="{{ '/' | relative_url }}">{{ site.title }}</a></h1>
+      {% endif %}
+
+      {{ content }}
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js';
+      mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+      function renderMermaidDiagrams() {
+        // Jekyll 파서가 code 블록이나 pre 블록으로 감싸버린 요소를 모두 타겟팅
+        const blocks = document.querySelectorAll('pre code, pre');
+        let index = 0;
+        const processed = new Set();
+
+        blocks.forEach((block) => {
+          if (processed.has(block)) return;
+
+          let text = block.innerText || block.textContent;
+          
+          // Jekyll 빌드 시 깨진 HTML 특수 인코딩 문자열 원상 복구
+          text = text.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+          
+          // 공백 정제 후 머메이드 문법 패턴 감지
+          let cleanedText = text.replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ").trim();
+
+          if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText) || cleanedText.includes("graph TD") || cleanedText.includes("graph LR")) {
+            
+            const startIndex = text.search(/(graph|flowchart|sequenceDiagram|gantt)/i);
+            if (startIndex !== -1) {
+              text = text.substring(startIndex);
+            }
+
+            // 고유한 Mermaid 컨테이너 div 생성
+            const div = document.createElement('div');
+            div.className = 'mermaid';
+            div.id = 'mermaid-dynamic-' + index++;
+            div.textContent = text.trim();
+            
+            // Jekyll이 생성한 바깥쪽 하이라이터 박스 찾기
+            const targetContainer = block.closest('.highlighter-rouge') || block.closest('pre') || block;
+            
+            if (!processed.has(targetContainer)) {
+              targetContainer.parentNode.replaceChild(div, targetContainer);
+              processed.add(targetContainer);
+              processed.add(block);
+            }
+          }
+        });
+
+        // 렌더링 시작
+        mermaid.run();
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", renderMermaidDiagrams);
+      } else {
+        renderMermaidDiagrams();
+      }
+    </script>
+
+    <style>
+      .mermaid {
+        display: flex !important;
+        justify-content: center !important;
+        background: #fdfdfd !important;
+        padding: 20px !important;
+        border-radius: 8px !important;
+        border: 1px solid #e1e4e8 !important;
+        margin: 25px 0 !important;
+        box-shadow: 0 1px 3px rgba(27,31,35,0.05) !important;
+      }
+    </style>
+  </body>
+</html>
