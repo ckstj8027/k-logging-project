@@ -1,29 +1,29 @@
 <script type="module">
-  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js';
+  import mermaid from '[https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js](https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js)';
   mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
   document.addEventListener("DOMContentLoaded", function() {
-    // 1. Jekyll 테마가 코드 블록을 감싸는 모든 요소(.highlighter-rouge, pre, code)를 전부 탐색합니다.
-    const blocks = document.querySelectorAll('.highlighter-rouge, pre, code');
+    // 1. 지킬이 렌더링한 모든 code 태그와 pre 태그를 추적합니다.
+    const blocks = document.querySelectorAll('pre code, pre');
     let index = 0;
     const processed = new Set();
 
     blocks.forEach((block) => {
       if (processed.has(block)) return;
 
-      // 2. 내부의 모든 HTML 태그(span 등)를 무시하고 눈에 보이는 순수 텍스트만 추출합니다.
+      // 2. 내부 텍스트 추출 및 눈에 안 보이는 유령 공백 제거
       let text = block.innerText || block.textContent;
-      
-      // 3. 줄바꿈과 유령 공백을 세척합니다.
-      let cleanedText = text
-        .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      
-      // 4. [검사 조건 완화] 텍스트가 graph, flowchart로 시작하거나 문동에 mermaid가 포함되어 있으면 타겟으로 지정
+      let cleanedText = text.replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ").replace(/\s+/g, " ").trim();
+
+      // 3. 지킬이 깨버린 HTML 특수기호들(&gt;, &lt;)을 원래 머메이드 문법(-->, ==>)으로 복원하는 핵심 로직
+      // (innerText에서 복원이 안 되었을 경우를 대비해 하드코딩으로 한 번 더 치환합니다.)
+      text = text.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+      cleanedText = cleanedText.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+
+      // 4. 본문 내에 graph 나 flowchart 문법이 감지되면 머메이드 영역으로 판단
       if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText) || cleanedText.includes("graph TD") || cleanedText.includes("graph LR")) {
         
-        // 5. 이미 쪼개진 텍스트에서 혹시 모를 앞뒤 기호나 찌꺼기 글자를 정제하고 오직 다이어그램 문법만 추출
+        // 머메이드 문법 시작점 검사 및 정제
         const startIndex = text.search(/(graph|flowchart|sequenceDiagram|gantt)/i);
         if (startIndex !== -1) {
           text = text.substring(startIndex);
@@ -34,8 +34,8 @@
         div.id = 'mermaid-' + index++;
         div.textContent = text.trim();
         
-        // 6. Jekyll이 지저분하게 쪼개놓은 최상위 div container를 찾아서 통째로 갈아 끼웁니다.
-        const targetContainer = block.closest('.highlighter-rouge') || block.closest('pre') || block;
+        // 5. 최상위 pre 블록을 찾아 커스텀 다이어그램 div로 통째로 갈아 끼웁니다.
+        const targetContainer = block.closest('pre') || block;
         
         if (!processed.has(targetContainer)) {
           targetContainer.parentNode.replaceChild(div, targetContainer);
@@ -45,7 +45,7 @@
       }
     });
 
-    // 7. 교체 후 즉시 렌더링 실행
+    // 6. 모든 요소가 다이어그램 수식 데이터로 치환되면 최종 렌더링 실행
     mermaid.run();
   });
 </script>
