@@ -1,6 +1,6 @@
 ---
-layout: default  
-mermaid: true
+layout: single  
+mermaid: true    
 ---
 
 
