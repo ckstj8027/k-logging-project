@@ -1,4 +1,5 @@
-# 지킬 빌드 엔진에게 루트의 모든 마크다운 파일에 default 레이아웃을 강제 매핑합니다.
+remote_theme: jekyll/jekyll-theme-cayman
+
 defaults:
   - scope:
       path: ""
