@@ -1,0 +1,63 @@
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js';
+  mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+  document.addEventListener("DOMContentLoaded", function() {
+    // 1. 지킬이 파싱해놓은 모든 pre code 블록을 추적합니다.
+    const blocks = document.querySelectorAll('pre code, pre');
+    let index = 0;
+    const processed = new Set();
+
+    blocks.forEach((block) => {
+      if (processed.has(block)) return;
+
+      let text = block.innerText || block.textContent;
+      
+      // 2. 지킬이 이스케이프 처리한 HTML 특수문자 부호들 원상복구
+      text = text.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+      
+      let cleanedText = text
+        .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      // 3. 내부 글자 중 graph TD, graph LR이 식별되면 머메이드 변환 대상 레이어로 가로챔
+      if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText) || cleanedText.includes("graph TD") || cleanedText.includes("graph LR")) {
+        
+        const startIndex = text.search(/(graph|flowchart|sequenceDiagram|gantt)/i);
+        if (startIndex !== -1) {
+          text = text.substring(startIndex);
+        }
+
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.id = 'mermaid-' + index++;
+        div.textContent = text.trim();
+        
+        // 4. 지킬 레이아웃 구조 전체를 머메이드 전용 div로 교체
+        const targetContainer = block.closest('.highlighter-rouge') || block.closest('pre') || block;
+        
+        if (!processed.has(targetContainer)) {
+          targetContainer.parentNode.replaceChild(div, targetContainer);
+          processed.add(targetContainer);
+          processed.add(block);
+        }
+      }
+    });
+
+    // 5. 치환 완료 후 최종 렌더링 강제 가동
+    mermaid.run();
+  });
+</script>
+
+<style>
+  .mermaid {
+    display: flex;
+    justify-content: center;
+    background: #fdfdfd;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #e1e4e8;
+    margin: 20px 0;
+  }
+</style>
