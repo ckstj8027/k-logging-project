@@ -1,9 +1,9 @@
 <script type="module">
-  import mermaid from '[https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js](https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js)';
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js';
   mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
   document.addEventListener("DOMContentLoaded", function() {
-    // 1. 지킬이 렌더링한 모든 code 태그와 pre 태그를 추적합니다.
+    // 1. 지킬이 생성한 모든 pre 태그와 내부에 매핑된 code 블록을 찾습니다.
     const blocks = document.querySelectorAll('pre code, pre');
     let index = 0;
     const processed = new Set();
@@ -11,19 +11,23 @@
     blocks.forEach((block) => {
       if (processed.has(block)) return;
 
-      // 2. 내부 텍스트 추출 및 눈에 안 보이는 유령 공백 제거
+      // 2. 내부 텍스트 추출
       let text = block.innerText || block.textContent;
-      let cleanedText = text.replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ").replace(/\s+/g, " ").trim();
+      
+      // 3. 눈에 보이지 않는 특수 유령 공백 제거
+      let cleanedText = text
+        .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 
-      // 3. 지킬이 깨버린 HTML 특수기호들(&gt;, &lt;)을 원래 머메이드 문법(-->, ==>)으로 복원하는 핵심 로직
-      // (innerText에서 복원이 안 되었을 경우를 대비해 하드코딩으로 한 번 더 치환합니다.)
+      // 4. [가장 중요] 지킬이 깨버린 HTML 특수문자(--&gt;, ==&gt;)를 원본 머메이드 화살표 문법(-->, ==>)으로 복원
       text = text.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
       cleanedText = cleanedText.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 
-      // 4. 본문 내에 graph 나 flowchart 문법이 감지되면 머메이드 영역으로 판단
+      // 5. 정제된 텍스트가 graph 나 flowchart 문법으로 판정될 경우 머메이드 div로 변환 수행
       if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText) || cleanedText.includes("graph TD") || cleanedText.includes("graph LR")) {
         
-        // 머메이드 문법 시작점 검사 및 정제
+        // 코드 앞단에 찌꺼기 글자가 있다면 graph 시작점부터 잘라내기 예외 처리
         const startIndex = text.search(/(graph|flowchart|sequenceDiagram|gantt)/i);
         if (startIndex !== -1) {
           text = text.substring(startIndex);
@@ -34,8 +38,8 @@
         div.id = 'mermaid-' + index++;
         div.textContent = text.trim();
         
-        // 5. 최상위 pre 블록을 찾아 커스텀 다이어그램 div로 통째로 갈아 끼웁니다.
-        const targetContainer = block.closest('pre') || block;
+        // 6. 지킬의 복잡한 코드블록 컨테이너 구조 전체를 커스텀 mermaid div로 원터치 치환
+        const targetContainer = block.closest('.highlighter-rouge') || block.closest('pre') || block;
         
         if (!processed.has(targetContainer)) {
           targetContainer.parentNode.replaceChild(div, targetContainer);
@@ -45,7 +49,7 @@
       }
     });
 
-    // 6. 모든 요소가 다이어그램 수식 데이터로 치환되면 최종 렌더링 실행
+    // 7. 파싱 및 원복 작업 완료 후 머메이드 강제 렌더링 시작
     mermaid.run();
   });
 </script>
