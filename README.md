@@ -307,3 +307,99 @@ graph LR
 1. **로그 및 메트릭 옵저버빌리티 완성**: Prometheus, Grafana, Loki 로깅 아키텍처를 도입하여 복잡하게 분산된 MSA 환경의 병목 원인을 수분 만에 추적 및 분석 가능하도록 관제 시스템 확보.
 2. **Downward API & Init Container를 통한 동적 IP 인증 해결**: K8s Pod의 유동 IP 문제를 Downward API 환경변수 매핑 및 busybox 초기 설정 주입 기법으로 우회하여 pg_hba.conf 접속 문제와 DB 보안 무결성을 완벽 확보.
 3. **데이터 전송량 절감 및 DB 공회전 차단**: No-op 필터와 Event UID 쿼리 수정을 통해 불필요한 트래픽 및 DB 쿼리 오버헤드를 **90% 이상 감축**하고 데이터 정합성을 달성.
+
+
+
+
+
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js';
+  
+  // 테마 레이아웃과 충돌하지 않도록 안전 구동 설정
+  mermaid.initialize({ 
+    startOnLoad: false, 
+    theme: 'default',
+    securityLevel: 'loose'
+  });
+
+  function renderCaymanMermaid() {
+    // 1. Cayman 테마가 마크다운 코드 블록을 감싸는 모든 하이라이터 컨테이너를 탐색
+    const codeBlocks = document.querySelectorAll('.highlighter-rouge, pre, code');
+    let index = 0;
+    const visited = new Set();
+
+    codeBlocks.forEach((block) => {
+      if (visited.has(block)) return;
+
+      // 블록 내부의 순수 텍스트 추출
+      let rawText = block.innerText || block.textContent;
+      if (!rawText) return;
+
+      // 2. Cayman 테마 빌드 엔진에 의해 깨진 HTML 특수문자(&gt;, &lt;) 및 강제 공백 오염 전면 복원
+      let cleanedText = rawText
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
+        .replace(/&amp;/g, '&')
+        .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, ' ')
+        .trim();
+
+      // 3. 텍스트가 머메이드 문법(graph TD, graph LR 등)으로 시작하는지 정확히 판별
+      if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText)) {
+        
+        // Jekyll 하이라이터가 임의로 붙인 상위 pre/div 컨테이너 추적
+        const targetWrapper = block.closest('.highlighter-rouge') || block.closest('pre') || block;
+        
+        if (!visited.has(targetWrapper)) {
+          // 머메이드 공식 div 규격 생성
+          const mermaidDiv = document.createElement('div');
+          mermaidDiv.className = 'mermaid';
+          mermaidDiv.id = 'cayman-mermaid-render-' + index++;
+          mermaidDiv.textContent = cleanedText;
+
+          const parent = targetWrapper.parentNode;
+          if (parent) {
+            parent.replaceChild(mermaidDiv, targetWrapper);
+            visited.add(targetWrapper);
+            visited.add(block);
+          }
+        }
+      }
+    });
+
+    // 4. 구조 변경이 완료된 요소들을 대상으로 머메이드 렌더링 엔진 최종 구동
+    mermaid.run();
+  }
+
+  // 돔 완성 시점 및 테마 지연 로드 타이밍을 모두 방어하기 위한 멀티 트리거 실행
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", renderCaymanMermaid);
+  } else {
+    renderCaymanMermaid();
+  }
+  window.addEventListener("load", () => {
+    setTimeout(renderCaymanMermaid, 100);
+  });
+</script>
+
+<style>
+  /* Cayman 테마의 본문 폭에 맞춘 가독성 향상용 공식 스타일 패치 */
+  .mermaid {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    background-color: #ffffff !important;
+    padding: 20px !important;
+    border: 1px solid #e1e4e8 !important;
+    border-radius: 6px !important;
+    margin: 30px 0 !important;
+    overflow-x: auto !important;
+  }
+  .mermaid svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+</style>
+
+
+
