@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ site.lang | default: "en-US" }}">
+<html lang="en-US">
   <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -9,7 +9,7 @@
   </head>
   <body>
     <div class="container-lg px-3 my-5 markdown-body">
-      {% if site.title and site.title != string_of_spaces %}
+      {% if site.title %}
       <h1><a href="{{ '/' | relative_url }}">{{ site.title }}</a></h1>
       {% endif %}
 
@@ -22,10 +22,9 @@
       import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.js';
       mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
-      function forceRenderMermaid() {
-        // 지킬 렌더러가 감싸버릴 수 있는 모든 코드 블록 셀렉터를 동시 확보
-        const selectors = 'pre code, pre, .highlighter-rouge, .language-plaintext, .language-mermaid';
-        const blocks = document.querySelectorAll(selectors);
+      function renderMermaid() {
+        // 지킬이 감싸놓은 모든 종류의 코드 래퍼 박스들을 샅샅이 뒤집니다.
+        const blocks = document.querySelectorAll('pre, code, .highlighter-rouge, .language-mermaid');
         let index = 0;
         const processed = new Set();
 
@@ -35,12 +34,11 @@
           let text = block.innerText || block.textContent;
           if (!text) return;
           
-          // 1. 지킬 빌드 시 깨져서 들어간 HTML 특수 문자 부호들(--&gt;, ==&gt;) 원상 복구
+          // Jekyll 빌드 시 강제로 깨져버린 HTML 특수 인코딩 문자열(--&gt;) 원상 복구
           text = text.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
           
           let cleanedText = text.replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ").trim();
 
-          // 2. 텍스트 내부에 머메이드 문법 문장구조가 잡히는지 검사
           if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText) || cleanedText.includes("graph TD") || cleanedText.includes("graph LR")) {
             
             const startIndex = text.search(/(graph|flowchart|sequenceDiagram|gantt)/i);
@@ -48,13 +46,12 @@
               text = text.substring(startIndex);
             }
 
-            // 3. 순수 텍스트 데이터를 주입한 커스텀 머메이드 div 생성
             const div = document.createElement('div');
             div.className = 'mermaid';
-            div.id = 'mermaid-render-engine-' + index++;
+            div.id = 'mermaid-forced-id-' + index++;
             div.textContent = text.trim();
             
-            // 4. 지킬이 지저분하게 감싸놓은 래퍼 박스(.highlighter-rouge 등)를 통째로 갈아끼움
+            // 지킬 하이라이터 최상단 컨테이너 박스를 타겟으로 잡고 통째로 치환
             const targetContainer = block.closest('.highlighter-rouge') || block.closest('pre') || block;
             
             if (!processed.has(targetContainer)) {
@@ -68,18 +65,13 @@
           }
         });
 
-        // 5. 렌더링 강제 가동
         mermaid.run();
       }
 
-      // DOM 로드 즉시 실행 및 레이아웃 밀림 방지 더블 트리거 레이어 세팅
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", forceRenderMermaid);
-      } else {
-        forceRenderMermaid();
-      }
+      // DOM 완료 시점 및 윈도우 로드 완료 시점 멀티 트리거 안전장치
+      document.addEventListener("DOMContentLoaded", renderMermaid);
       window.addEventListener("load", function() {
-        setTimeout(forceRenderMermaid, 150);
+        setTimeout(renderMermaid, 150);
       });
     </script>
 
