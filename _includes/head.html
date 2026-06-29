@@ -3,27 +3,32 @@
   mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
   document.addEventListener("DOMContentLoaded", function() {
-    // 모든 pre 태그를 가져옵니다.
+    // 1. 모든 pre 태그를 탐색합니다.
     const preBlocks = document.querySelectorAll('pre');
     let index = 0;
     
     preBlocks.forEach((pre) => {
-      // 내부에 불필요한 줄바꿈, 공백, 특수 공백(&nbsp;)을 제거하고 텍스트만 추출
-      const text = pre.textContent.replace(/\u00a0/g, " ").trim();
+      // 2. 내부 텍스트(span 태그 등이 섞여있어도 순수 글자만)를 가져옵니다.
+      let text = pre.innerText || pre.textContent;
       
-      // graph, flowchart, sequenceDiagram 등의 단어가 포함되어 있는지 유연하게 검사
-      if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(text)) {
+      // 3. 눈에 보이지 않는 특수 공백(\u00a0 등)과 모든 종류의 줄바꿈/공백을 앞뒤로 완벽히 정제합니다.
+      const cleanedText = text.replace(/[\u00a0\s]+/g, " ").trim();
+      
+      // 4. 공백이 다 날아간 상태에서 graphTD, graphLR, flowchartTD 등으로 시작하는지 검사합니다.
+      if (/^(graph|flowchart|sequenceDiagram|gantt|classDiagram|erDiagram)/i.test(cleanedText)) {
         const div = document.createElement('div');
         div.className = 'mermaid';
         div.id = 'mermaid-' + index++;
-        div.textContent = text;
         
-        // 기존 pre 태그를 mermaid div로 교체
+        // 5. 렌더링용 데이터는 줄바꿈이 살아있는 원본 텍스트(특수 공백만 치환)를 넣어줍니다.
+        div.textContent = text.replace(/\u00a0/g, " ").trim();
+        
+        // 6. 기존 pre 구조를 날리고 깔끔한 mermaid div로 전면 교체
         pre.parentNode.replaceChild(div, pre);
       }
     });
 
-    // 교체 완료 후 그래프 렌더링
+    // 7. 교체가 완전히 끝난 후 머메이드 렌더링 시작
     mermaid.run();
   });
 </script>
