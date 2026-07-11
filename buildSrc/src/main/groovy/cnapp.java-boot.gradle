@@ -1,0 +1,11 @@
+// Spring 컨텍스트가 필요한 모듈 (service, adapter 등 — 샘플의 'kotlin-boot' 타입)
+// java-library: service 모듈이 model 을 api(...) 로 재노출할 수 있도록 함
+plugins {
+    id 'cnapp.java'
+    id 'java-library'
+}
+
+dependencies {
+    api platform('org.springframework.boot:spring-boot-dependencies:3.4.2')
+    implementation 'org.springframework.boot:spring-boot-starter'
+}

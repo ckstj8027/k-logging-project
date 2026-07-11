@@ -1,0 +1,9 @@
+// In-Adapter: REST 컨트롤러. service(UseCase)만 의존 — repository 직접 참조 금지.
+plugins {
+    id 'cnapp.java-boot-mvc'
+}
+
+dependencies {
+    implementation project(':msa-version:ingestion:service')
+    implementation project(':msa-version:ingestion:exception')
+}

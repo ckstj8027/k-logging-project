@@ -1,0 +1,14 @@
+// UseCase: In-Port 인터페이스 + 패키지 전용(package-private) 구현.
+// 어댑터(repository, redis, kafka)를 직접 참조하지 않는다 — infrastructure 의 포트만 의존.
+plugins {
+    id 'cnapp.java-boot'
+}
+
+dependencies {
+    api project(':msa-version:analysis:model')
+    implementation project(':msa-version:analysis:infrastructure')
+    implementation project(':msa-version:common:model')
+
+    // @Transactional (트랜잭션 매니저 구현은 application 조립 시 JPA 어댑터가 제공)
+    implementation 'org.springframework:spring-tx'
+}

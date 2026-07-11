@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: msa-query
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cnappdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+jwt:
+  secret: dGhpcy1pcy1hLXZlcnktc2VjdXJlLWJhc2U2NC1lbmNvZGVkLXNlY3JldC1rZXktZm9yLWp3dC1zaWduaW5nLXVzZWQtYnkta3Mtc2VjdXJl
+
+server:
+  port: 8083

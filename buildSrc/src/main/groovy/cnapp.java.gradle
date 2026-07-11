@@ -1,0 +1,54 @@
+// 기본 Java 컨벤션: 모든 msa-version 모듈의 공통 규약
+// (샘플 프로젝트의 build-recipe 'kotlin' 타입에 해당)
+plugins {
+    id 'java'
+}
+
+// 서비스별로 group 을 다르게 부여한다.
+// 모든 서비스가 model/service/api 등 같은 모듈명을 쓰므로, group 까지 같으면
+// 좌표(group:name) 충돌로 Gradle 의존성 치환이 자기 자신을 가리켜 순환 의존이 발생한다.
+group = "com.k8s.cnapp.msa.${project.parent.name}"
+version = '0.0.1-SNAPSHOT'
+
+// jar 파일명도 서비스명-모듈명으로 유니크하게 (bootJar 내 BOOT-INF/lib 파일명 충돌 방지)
+base {
+    archivesName = "${project.parent.name}-${project.name}"
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    def bom = platform('org.springframework.boot:spring-boot-dependencies:3.4.2')
+    implementation bom
+    compileOnly bom
+    annotationProcessor bom
+    testImplementation bom
+    testAnnotationProcessor bom
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// 한글 주석이 포함된 소스를 위해 컴파일 인코딩을 UTF-8 로 고정 (Windows 기본은 MS949)
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    // Spring MVC 가 @PathVariable/@RequestParam 등의 이름을 리플렉션으로 읽을 수 있도록.
+    // Boot 플러그인은 자동 추가하지만 일반 java 모듈에는 없으므로 명시한다.
+    options.compilerArgs << '-parameters'
+}

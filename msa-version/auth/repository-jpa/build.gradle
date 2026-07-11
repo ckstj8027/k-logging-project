@@ -1,0 +1,9 @@
+// Out-Adapter: JPA 영속성 어댑터. infrastructure 의 포트를 구현한다.
+plugins {
+    id 'cnapp.java-boot-jpa'
+}
+
+dependencies {
+    implementation project(':msa-version:auth:model')
+    implementation project(':msa-version:auth:infrastructure')
+}

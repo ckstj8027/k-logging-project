@@ -1,0 +1,7 @@
+// Domain: 도메인 예외.
+plugins {
+    id 'cnapp.java-library'
+}
+
+dependencies {
+}

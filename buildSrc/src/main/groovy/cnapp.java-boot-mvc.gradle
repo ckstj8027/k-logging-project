@@ -1,0 +1,8 @@
+// REST In-Adapter 모듈 (샘플의 'kotlin-boot-mvc' 타입)
+plugins {
+    id 'cnapp.java-boot'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+}

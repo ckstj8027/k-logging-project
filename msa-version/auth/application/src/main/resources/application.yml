@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: msa-auth
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cnappdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+jwt:
+  # JJWT 0.12+ 에서는 충분히 긴 Base64 문자열이 필요합니다.
+  secret: dGhpcy1pcy1hLXZlcnktc2VjdXJlLWJhc2U2NC1lbmNvZGVkLXNlY3JldC1rZXktZm9yLWp3dC1zaWduaW5nLXVzZWQtYnkta3Mtc2VjdXJl
+  expiration: 86400000
+
+server:
+  port: 8084

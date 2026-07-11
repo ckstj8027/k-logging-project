@@ -1,0 +1,20 @@
+// Bootstrap: 조립 전용 모듈. 어댑터들과 api 를 classpath 에 올려 AutoConfiguration 으로 배선한다.
+plugins {
+    id 'cnapp.java'
+}
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+    implementation project(':msa-version:ingestion:api')
+    implementation project(':msa-version:ingestion:repository-jpa')
+    implementation project(':msa-version:ingestion:messaging-kafka')
+    implementation project(':msa-version:common:jackson')
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    runtimeOnly 'org.postgresql:postgresql'
+}
+
+// plain jar 비활성화: build/libs 에 bootJar 하나만 남겨 Dockerfile 의 *.jar 복사가 모호해지지 않게 한다
+jar {
+    enabled = false
+}

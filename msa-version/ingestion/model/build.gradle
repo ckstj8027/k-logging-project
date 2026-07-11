@@ -1,0 +1,7 @@
+// Domain: 순수 도메인 모델. 프레임워크 의존성 금지.
+plugins {
+    id 'cnapp.java-library'
+}
+
+dependencies {
+}

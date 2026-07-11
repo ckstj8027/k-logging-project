@@ -1,0 +1,9 @@
+// Domain: 도메인 예외.
+// 기존 msa-analysis 는 모든 오류를 삼키고 로그만 남기는 방식이라(도메인 예외 없음),
+// 동작 보존을 위해 비워 둔다. 향후 타입화된 오류가 생기면 여기에 추가한다.
+plugins {
+    id 'cnapp.java-library'
+}
+
+dependencies {
+}

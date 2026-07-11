@@ -51,3 +51,9 @@ AI-server/.venv/
 AI-server/env/
 AI-server/.pytest_cache/
 AI-server/chroma_db/
+### Docs: README 를 제외한 모든 md 파일 무시 ###
+*.md
+!README.md
+
+### 빌드 로그 ###
+build-log.txt

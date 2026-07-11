@@ -1,7 +1,0 @@
-rootProject.name = 'msa-version'
-
-include 'msa-common'
-include 'msa-ingestion'
-include 'msa-analysis'
-include 'msa-query'
-include 'msa-auth'

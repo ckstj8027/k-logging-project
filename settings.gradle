@@ -1,3 +1,49 @@
 rootProject.name = 'cnapp'
 include 'agent'
 include 'server'
+
+// ===== MSA (hexagonal multi-module) =====
+include 'msa-version'
+
+// 공유 커널
+include 'msa-version:common:model'
+include 'msa-version:common:jackson'
+
+// ingestion
+include 'msa-version:ingestion:model'
+include 'msa-version:ingestion:exception'
+include 'msa-version:ingestion:infrastructure'
+include 'msa-version:ingestion:service'
+include 'msa-version:ingestion:repository-jpa'
+include 'msa-version:ingestion:messaging-kafka'
+include 'msa-version:ingestion:api'
+include 'msa-version:ingestion:application'
+
+// analysis
+include 'msa-version:analysis:model'
+include 'msa-version:analysis:exception'
+include 'msa-version:analysis:infrastructure'
+include 'msa-version:analysis:service'
+include 'msa-version:analysis:repository-jpa'
+include 'msa-version:analysis:cache-redis'
+include 'msa-version:analysis:consumer-kafka'
+include 'msa-version:analysis:application'
+
+// query
+include 'msa-version:query:model'
+include 'msa-version:query:exception'
+include 'msa-version:query:infrastructure'
+include 'msa-version:query:service'
+include 'msa-version:query:repository-jpa'
+include 'msa-version:query:cache-redis'
+include 'msa-version:query:api'
+include 'msa-version:query:application'
+
+// auth
+include 'msa-version:auth:model'
+include 'msa-version:auth:exception'
+include 'msa-version:auth:infrastructure'
+include 'msa-version:auth:service'
+include 'msa-version:auth:repository-jpa'
+include 'msa-version:auth:api'
+include 'msa-version:auth:application'

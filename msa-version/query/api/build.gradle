@@ -1,0 +1,16 @@
+// In-Adapter: REST 컨트롤러 + JWT 보안. service(UseCase)만 의존 — repository 직접 참조 금지.
+plugins {
+    id 'cnapp.java-boot-mvc'
+}
+
+dependencies {
+    implementation project(':msa-version:query:service')
+    implementation project(':msa-version:query:exception')
+
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // JWT (검증 전용)
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
+}

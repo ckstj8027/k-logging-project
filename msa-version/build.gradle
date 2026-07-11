@@ -1,36 +1,10 @@
-plugins {
-    id 'java'
-    id 'org.springframework.boot' version '3.4.2' apply false
-    id 'io.spring.dependency-management' version '1.1.7' apply false
-}
-
-allprojects {
-    group = 'com.k8s.cnapp.msa'
-    version = '0.0.1-SNAPSHOT'
-
-    repositories {
-        mavenCentral()
-    }
-}
-
-subprojects {
-    apply plugin: 'java'
-    apply plugin: 'io.spring.dependency-management'
-
-    java {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    dependencyManagement {
-        imports {
-            mavenBom "org.springframework.boot:spring-boot-dependencies:3.4.2"
-        }
-    }
-
-    dependencies {
-        compileOnly 'org.projectlombok:lombok'
-        annotationProcessor 'org.projectlombok:lombok'
-        testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    }
-}
+// msa-version 집계 프로젝트.
+// 모든 빌드 규약은 buildSrc의 cnapp.* 컨벤션 플러그인으로 관리한다.
+// 각 모듈의 build.gradle 은 "모듈 간 의존성"만 선언한다 — 이것이 아키텍처 강제 수단이다.
+//
+// 의존 방향 (컴파일 타임 강제):
+//   model <- infrastructure <- service <- api
+//   model <- repository-jpa / messaging-kafka / cache-redis (어댑터)
+//   application -> api + 어댑터 전부 (조립 전용)
+// 금지:
+//   api -> repository 직접 참조, 서비스(도메인) 간 직접 참조

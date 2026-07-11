@@ -1,0 +1,8 @@
+// JPA Out-Adapter 모듈 (샘플의 'kotlin-boot-jdbc-repository' 타입)
+plugins {
+    id 'cnapp.java-boot'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+}

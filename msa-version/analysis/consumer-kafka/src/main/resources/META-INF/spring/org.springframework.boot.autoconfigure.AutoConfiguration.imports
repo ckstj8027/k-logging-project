@@ -1,0 +1,2 @@
+com.k8s.cnapp.msa.analysis.consumer.kafka.AnalysisJacksonAutoConfiguration
+com.k8s.cnapp.msa.analysis.consumer.kafka.AnalysisConsumerKafkaAutoConfiguration

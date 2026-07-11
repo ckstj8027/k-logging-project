@@ -1,0 +1,11 @@
+// UseCase: In-Port 인터페이스 + 패키지 전용(package-private) 구현.
+// 어댑터(repository, kafka)를 직접 참조하지 않는다 — infrastructure 의 포트만 의존.
+plugins {
+    id 'cnapp.java-boot'
+}
+
+dependencies {
+    api project(':msa-version:ingestion:model')
+    implementation project(':msa-version:ingestion:exception')
+    implementation project(':msa-version:ingestion:infrastructure')
+}

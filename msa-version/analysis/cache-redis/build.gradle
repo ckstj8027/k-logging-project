@@ -1,0 +1,9 @@
+// Out-Adapter: Redis 캐시 어댑터. AlertCacheInvalidationPort 를 구현한다.
+plugins {
+    id 'cnapp.java-boot'
+}
+
+dependencies {
+    implementation project(':msa-version:analysis:infrastructure')
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+}

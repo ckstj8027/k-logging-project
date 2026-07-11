@@ -1,0 +1,10 @@
+// Out-Adapter: Kafka 발행 어댑터. SnapshotEventPublisher 포트를 구현한다.
+plugins {
+    id 'cnapp.java-boot'
+}
+
+dependencies {
+    implementation project(':msa-version:ingestion:infrastructure')
+    implementation project(':msa-version:common:model')
+    implementation 'org.springframework.kafka:spring-kafka'
+}

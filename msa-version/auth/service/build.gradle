@@ -1,0 +1,14 @@
+// UseCase: In-Port 인터페이스 + 패키지 전용(package-private) 구현.
+// 어댑터(repository)를 직접 참조하지 않는다 — infrastructure 의 포트만 의존.
+plugins {
+    id 'cnapp.java-boot'
+}
+
+dependencies {
+    api project(':msa-version:auth:model')
+    implementation project(':msa-version:auth:exception')
+    implementation project(':msa-version:auth:infrastructure')
+
+    // 기존 AuthPolicyService 의 @Transactional 경계 유지용
+    implementation 'org.springframework:spring-tx'
+}

@@ -1,0 +1,16 @@
+// In-Adapter: Kafka 컨슈머. K8s SDK(client-java) 의존은 이 모듈 안에만 존재한다.
+// 수신 rawData(JSON) → ClusterSnapshot → ParsedSnapshot(도메인) 변환 후 UseCase 를 호출한다.
+plugins {
+    id 'cnapp.java-boot'
+}
+
+dependencies {
+    implementation project(':msa-version:analysis:service')
+    implementation project(':msa-version:analysis:model')
+    implementation project(':msa-version:common:model')
+
+    implementation 'org.springframework.kafka:spring-kafka'
+    implementation 'io.kubernetes:client-java:19.0.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+}

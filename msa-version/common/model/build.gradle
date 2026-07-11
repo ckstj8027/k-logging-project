@@ -1,0 +1,7 @@
+// 공유 커널: 서비스 간 계약(enum, Kafka 메시지 DTO). 프레임워크 의존성 금지.
+plugins {
+    id 'cnapp.java-library'
+}
+
+dependencies {
+}

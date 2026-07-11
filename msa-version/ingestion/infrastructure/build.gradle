@@ -1,0 +1,8 @@
+// Out-Port: 외부 세계로 나가는 규격(인터페이스)만 정의. 구현 없음.
+plugins {
+    id 'cnapp.java-library'
+}
+
+dependencies {
+    api project(':msa-version:ingestion:model')
+}

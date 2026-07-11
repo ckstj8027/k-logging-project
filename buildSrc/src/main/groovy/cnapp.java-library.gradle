@@ -1,0 +1,9 @@
+// 순수 라이브러리 모듈 (model, exception 등 — 샘플의 'kotlin-lib' 타입)
+plugins {
+    id 'cnapp.java'
+    id 'java-library'
+}
+
+dependencies {
+    api platform('org.springframework.boot:spring-boot-dependencies:3.4.2')
+}
