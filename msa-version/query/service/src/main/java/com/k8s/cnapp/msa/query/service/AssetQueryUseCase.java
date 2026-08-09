@@ -13,15 +13,15 @@ import java.util.List;
  * In-Port: 테넌트별 자산(Pod/Node/Service/Deployment/Namespace/Event) 조회 유스케이스.
  */
 public interface AssetQueryUseCase {
-    List<PodProfile> getPods(Long tenantId);
+    List<PodProfile> getPods(Long tenantId, Long lastId, int size);
 
-    List<NodeProfile> getNodes(Long tenantId);
+    List<NodeProfile> getNodes(Long tenantId, Long lastId, int size);
 
-    List<ServiceProfile> getServices(Long tenantId);
+    List<ServiceProfile> getServices(Long tenantId, Long lastId, int size);
 
-    List<DeploymentProfile> getDeployments(Long tenantId);
+    List<DeploymentProfile> getDeployments(Long tenantId, Long lastId, int size);
 
-    List<NamespaceProfile> getNamespaces(Long tenantId);
+    List<NamespaceProfile> getNamespaces(Long tenantId, Long lastId, int size);
 
-    List<EventProfile> getEvents(Long tenantId);
+    List<EventProfile> getEvents(Long tenantId, Long lastId, int size);
 }

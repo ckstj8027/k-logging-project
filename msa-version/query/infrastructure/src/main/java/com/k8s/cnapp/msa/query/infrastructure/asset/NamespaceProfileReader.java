@@ -9,4 +9,10 @@ import java.util.List;
  */
 public interface NamespaceProfileReader {
     List<NamespaceProfile> findAllByTenantId(Long tenantId);
+
+    /**
+     * 노오프셋(keyset) 페이징: id < lastId 조건 + id 내림차순 + size 개 제한.
+     * lastId 가 null 이면 최신부터 size 개.
+     */
+    List<NamespaceProfile> findPage(Long tenantId, Long lastId, int size);
 }

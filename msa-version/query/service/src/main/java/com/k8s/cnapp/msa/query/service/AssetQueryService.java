@@ -27,32 +27,32 @@ class AssetQueryService implements AssetQueryUseCase {
     private final EventProfileReader eventProfileReader;
 
     @Override
-    public List<PodProfile> getPods(Long tenantId) {
-        return podProfileReader.findAllByTenantId(tenantId);
+    public List<PodProfile> getPods(Long tenantId, Long lastId, int size) {
+        return podProfileReader.findPage(tenantId, lastId, size);
     }
 
     @Override
-    public List<NodeProfile> getNodes(Long tenantId) {
-        return nodeProfileReader.findAllByTenantId(tenantId);
+    public List<NodeProfile> getNodes(Long tenantId, Long lastId, int size) {
+        return nodeProfileReader.findPage(tenantId, lastId, size);
     }
 
     @Override
-    public List<ServiceProfile> getServices(Long tenantId) {
-        return serviceProfileReader.findAllByTenantId(tenantId);
+    public List<ServiceProfile> getServices(Long tenantId, Long lastId, int size) {
+        return serviceProfileReader.findPage(tenantId, lastId, size);
     }
 
     @Override
-    public List<DeploymentProfile> getDeployments(Long tenantId) {
-        return deploymentProfileReader.findAllByTenantId(tenantId);
+    public List<DeploymentProfile> getDeployments(Long tenantId, Long lastId, int size) {
+        return deploymentProfileReader.findPage(tenantId, lastId, size);
     }
 
     @Override
-    public List<NamespaceProfile> getNamespaces(Long tenantId) {
-        return namespaceProfileReader.findAllByTenantId(tenantId);
+    public List<NamespaceProfile> getNamespaces(Long tenantId, Long lastId, int size) {
+        return namespaceProfileReader.findPage(tenantId, lastId, size);
     }
 
     @Override
-    public List<EventProfile> getEvents(Long tenantId) {
-        return eventProfileReader.findAllByTenantId(tenantId);
+    public List<EventProfile> getEvents(Long tenantId, Long lastId, int size) {
+        return eventProfileReader.findPage(tenantId, lastId, size);
     }
 }

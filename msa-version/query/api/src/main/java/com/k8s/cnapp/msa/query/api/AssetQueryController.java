@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -54,38 +55,52 @@ public class AssetQueryController {
     }
 
     @GetMapping("/assets/pods")
-    public ResponseEntity<List<PodProfile>> getPods() {
-        return ResponseEntity.ok(assetQueryUseCase.getPods(getCurrentTenantId()));
+    public ResponseEntity<List<PodProfile>> getPods(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(assetQueryUseCase.getPods(getCurrentTenantId(), lastId, size));
     }
 
     @GetMapping("/assets/nodes")
-    public ResponseEntity<List<NodeProfile>> getNodes() {
-        return ResponseEntity.ok(assetQueryUseCase.getNodes(getCurrentTenantId()));
+    public ResponseEntity<List<NodeProfile>> getNodes(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(assetQueryUseCase.getNodes(getCurrentTenantId(), lastId, size));
     }
 
     @GetMapping("/assets/services")
-    public ResponseEntity<List<ServiceProfile>> getServices() {
-        return ResponseEntity.ok(assetQueryUseCase.getServices(getCurrentTenantId()));
+    public ResponseEntity<List<ServiceProfile>> getServices(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(assetQueryUseCase.getServices(getCurrentTenantId(), lastId, size));
     }
 
     @GetMapping("/assets/deployments")
-    public ResponseEntity<List<DeploymentProfile>> getDeployments() {
-        return ResponseEntity.ok(assetQueryUseCase.getDeployments(getCurrentTenantId()));
+    public ResponseEntity<List<DeploymentProfile>> getDeployments(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(assetQueryUseCase.getDeployments(getCurrentTenantId(), lastId, size));
     }
 
     @GetMapping("/assets/namespaces")
-    public ResponseEntity<List<NamespaceProfile>> getNamespaces() {
-        return ResponseEntity.ok(assetQueryUseCase.getNamespaces(getCurrentTenantId()));
+    public ResponseEntity<List<NamespaceProfile>> getNamespaces(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(assetQueryUseCase.getNamespaces(getCurrentTenantId(), lastId, size));
     }
 
     @GetMapping("/assets/events")
-    public ResponseEntity<List<EventProfile>> getEvents() {
-        return ResponseEntity.ok(assetQueryUseCase.getEvents(getCurrentTenantId()));
+    public ResponseEntity<List<EventProfile>> getEvents(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(assetQueryUseCase.getEvents(getCurrentTenantId(), lastId, size));
     }
 
     @GetMapping("/alerts")
-    public ResponseEntity<List<Alert>> getAlerts() {
-        return ResponseEntity.ok(alertQueryUseCase.getOpenAlerts(getCurrentTenantId()));
+    public ResponseEntity<List<Alert>> getAlerts(
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(alertQueryUseCase.getOpenAlerts(getCurrentTenantId(), lastId, size));
     }
 
     @GetMapping("/policies")

@@ -9,4 +9,7 @@ import java.util.List;
  */
 public interface AlertQueryUseCase {
     List<Alert> getOpenAlerts(Long tenantId);
+
+    /** 노오프셋 페이징: 캐시/DB의 전체 목록에서 id < lastId 최신순 size 개를 잘라 반환한다. */
+    List<Alert> getOpenAlerts(Long tenantId, Long lastId, int size);
 }

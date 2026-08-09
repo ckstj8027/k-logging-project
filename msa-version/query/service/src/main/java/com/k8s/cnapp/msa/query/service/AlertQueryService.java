@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -48,5 +49,16 @@ class AlertQueryService implements AlertQueryUseCase {
         }
 
         return alerts;
+    }
+
+    @Override
+    public List<Alert> getOpenAlerts(Long tenantId, Long lastId, int size) {
+        // 캐시 우선 전체 목록을 가져온 뒤 메모리에서 keyset 슬라이스한다
+        // (캐시 무효화 로직과 페이징을 모두 보존하기 위한 구조)
+        return getOpenAlerts(tenantId).stream()
+                .sorted(Comparator.comparing(Alert::getId).reversed())
+                .filter(a -> lastId == null || a.getId() < lastId)
+                .limit(size)
+                .toList();
     }
 }
