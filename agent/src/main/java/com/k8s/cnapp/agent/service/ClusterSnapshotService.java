@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -35,6 +36,12 @@ public class ClusterSnapshotService implements CommandLineRunner {
     private final NetworkingV1Api networkingV1Api;
     private final SharedInformerFactory informerFactory;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    
+    // [추가] 중복 이벤트 제거를 위한 지문(Hash) 저장소
+    private final Map<String, Integer> resourceHashes = new ConcurrentHashMap<>();
+    // 순수 Gson 은 JDK 17 에서 OffsetDateTime 리플렉션 접근이 막혀 실패하므로
+    // k8s 클라이언트가 어댑터를 등록해둔 JSON 직렬화기를 사용한다
+    private final io.kubernetes.client.openapi.JSON k8sJson = new io.kubernetes.client.openapi.JSON();
 
     public ClusterSnapshotService(ApiClient apiClient, SnapshotBlockingQueue queue) {
         this.queue = queue;
@@ -237,7 +244,21 @@ public class ClusterSnapshotService implements CommandLineRunner {
 
     private void handleUpdate(String type, Object obj) {
         try {
-            sanitize((KubernetesObject) obj);
+            KubernetesObject k8sObj = (KubernetesObject) obj;
+            sanitize(k8sObj);
+            
+            // [핵심 로직] 중복 전송 방지 필터링
+            String objectKey = type + "/" + k8sObj.getMetadata().getNamespace() + "/" + k8sObj.getMetadata().getName();
+            int currentHash = k8sJson.serialize(k8sObj).hashCode();
+            
+            if (resourceHashes.containsKey(objectKey) && resourceHashes.get(objectKey) == currentHash) {
+                // 내용이 이전과 완전히 동일하면 큐에 넣지 않고 무시합니다 (로그 플러딩 방지)
+                return;
+            }
+            
+            // 변경된 경우 해시 업데이트 및 큐 삽입
+            resourceHashes.put(objectKey, currentHash);
+
             ClusterSnapshot snapshot = switch (type) {
                 case "Pod" -> createSnapshot(List.of((V1Pod) obj), null, null, null, null, null, null, null, null, null, null);
                 case "Service" -> createSnapshot(null, List.of((V1Service) obj), null, null, null, null, null, null, null, null, null);
@@ -252,7 +273,10 @@ public class ClusterSnapshotService implements CommandLineRunner {
                 case "Ingress" -> createSnapshot(null, null, null, null, null, null, null, null, null, null, List.of((V1Ingress) obj));
                 default -> null;
             };
-            if (snapshot != null) queue.put(snapshot);
+            if (snapshot != null) {
+                logger.debug("Detected meaningful change in {} - forwarding to server.", objectKey);
+                queue.put(snapshot);
+            }
         } catch (Exception e) {
             logger.error("Error handling incremental update for {}: {}", type, e.getMessage());
         }
@@ -261,6 +285,7 @@ public class ClusterSnapshotService implements CommandLineRunner {
     private void handleDelete(String type, String key) {
         try {
             logger.info("Detected deletion event - Type: {}, Key: {}", type, key);
+            resourceHashes.remove(type + "/" + key); // 해시 저장소에서 제거
             ClusterSnapshot snapshot = new ClusterSnapshot(
                     null, null, null, null, null, null, null, null, null, null, null,
                     Map.of(type, List.of(key))
@@ -305,6 +330,11 @@ public class ClusterSnapshotService implements CommandLineRunner {
     private void sanitize(KubernetesObject item) {
         if (item.getMetadata() != null) {
             item.getMetadata().setManagedFields(null);
+            
+            // [중요] ResourceVersion은 아무 의미 없는 상태 업데이트에도 계속 증가하므로, 
+            // 해시값 비교에서 제외하기 위해 무조건 null로 날려버립니다.
+            item.getMetadata().setResourceVersion(null);
+            
             Map<String, String> annotations = item.getMetadata().getAnnotations();
             if (annotations != null) {
                 annotations.remove("kubectl.kubernetes.io/last-applied-configuration");
