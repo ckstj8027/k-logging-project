@@ -15,9 +15,8 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,8 +51,6 @@ public class ServiceProfileEntity extends BaseResourceProfileEntity {
     @OneToMany(mappedBy = "serviceProfile", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ServicePortProfileEntity> ports = new ArrayList<>();
 
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
 
     static ServiceProfileEntity fromModel(ServiceProfile model, TenantEntity tenant) {
         ServiceProfileEntity entity = new ServiceProfileEntity();

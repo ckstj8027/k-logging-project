@@ -33,10 +33,11 @@ public class NodeProfileEntity {
     private String kubeletVersion;
     private String cpuCapacity;
     private String memoryCapacity;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 
     public NodeProfile toModel() {
         return new NodeProfile(id, tenantId, name, osImage, kernelVersion, containerRuntimeVersion,
-                kubeletVersion, cpuCapacity, memoryCapacity, lastSeenAt);
+                kubeletVersion, cpuCapacity, memoryCapacity, createdAt, lastSeenAt);
     }
 }

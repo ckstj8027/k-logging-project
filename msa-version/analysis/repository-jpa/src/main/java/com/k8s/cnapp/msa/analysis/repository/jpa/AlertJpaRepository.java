@@ -7,4 +7,7 @@ import java.util.List;
 
 interface AlertJpaRepository extends JpaRepository<AlertEntity, Long> {
     List<AlertEntity> findByTenantAndStatus(TenantEntity tenant, Status status);
+
+    boolean existsByTenantAndResourceTypeAndResourceNameAndMessageAndStatus(
+            TenantEntity tenant, String resourceType, String resourceName, String message, Status status);
 }

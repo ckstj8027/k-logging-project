@@ -14,9 +14,8 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
+
 
 @Entity
 @Getter
@@ -55,8 +54,6 @@ public class PodProfileEntity extends BaseResourceProfileEntity {
     @Column(name = "memory_usage")
     private String memoryUsage;
 
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
 
     static PodProfileEntity fromModel(PodProfile model, TenantEntity tenant) {
         PodProfileEntity entity = new PodProfileEntity();

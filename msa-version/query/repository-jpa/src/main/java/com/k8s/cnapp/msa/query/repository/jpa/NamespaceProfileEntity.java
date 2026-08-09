@@ -28,9 +28,10 @@ public class NamespaceProfileEntity {
     private Long tenantId;
     private String name;
     private String status;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 
     public NamespaceProfile toModel() {
-        return new NamespaceProfile(id, tenantId, name, status, lastSeenAt);
+        return new NamespaceProfile(id, tenantId, name, status, createdAt, lastSeenAt);
     }
 }

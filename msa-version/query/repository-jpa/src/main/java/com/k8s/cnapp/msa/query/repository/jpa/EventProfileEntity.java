@@ -36,10 +36,11 @@ public class EventProfileEntity {
     private Integer count;
     private OffsetDateTime lastTimestamp;
     private String uid;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 
     public EventProfile toModel() {
         return new EventProfile(id, tenantId, namespace, involvedObjectKind, involvedObjectName,
-                reason, message, type, count, lastTimestamp, uid, lastSeenAt);
+                reason, message, type, count, lastTimestamp, uid, createdAt, lastSeenAt);
     }
 }

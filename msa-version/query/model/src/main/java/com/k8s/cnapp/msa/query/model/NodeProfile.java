@@ -24,5 +24,6 @@ public class NodeProfile {
     private String kubeletVersion;
     private String cpuCapacity;
     private String memoryCapacity;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 }

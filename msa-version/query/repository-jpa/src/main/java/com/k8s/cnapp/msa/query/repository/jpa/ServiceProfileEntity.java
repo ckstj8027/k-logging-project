@@ -11,6 +11,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 /**
  * 기존 query 도메인의 ServiceProfile 엔티티와 동일한 매핑.
  */
@@ -28,8 +30,10 @@ public class ServiceProfileEntity {
     private String name;
     private String type;
     private String clusterIp;
+    private LocalDateTime createdAt;
+    private LocalDateTime lastSeenAt;
 
     public ServiceProfile toModel() {
-        return new ServiceProfile(id, tenantId, namespace, name, type, clusterIp);
+        return new ServiceProfile(id, tenantId, namespace, name, type, clusterIp, createdAt, lastSeenAt);
     }
 }

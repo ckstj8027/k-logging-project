@@ -43,11 +43,12 @@ public class PodProfileEntity {
 
     private String cpuUsage;
     private String memoryUsage;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 
     public PodProfile toModel() {
         return new PodProfile(id, tenantId, namespace, podName, containerName, image, status, podIp, nodeName,
                 privileged, runAsUser, runAsRoot, allowPrivilegeEscalation, readOnlyRootFilesystem,
-                cpuUsage, memoryUsage, lastSeenAt);
+                cpuUsage, memoryUsage, createdAt, lastSeenAt);
     }
 }

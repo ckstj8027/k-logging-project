@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +96,7 @@ class ProcessSnapshotService implements ProcessSnapshotUseCase {
 
                 PodProfile profile = podProfileStore.findByTenantAndAsset(tenant, assetContext.getNamespace(), assetContext.getPodName(), assetContext.getContainerName())
                         .orElse(parsed);
+                profile.updateLastSeenAt(LocalDateTime.now());
 
                 profile.update(assetContext, parsed.getPrivileged(), parsed.getRunAsUser(), parsed.getAllowPrivilegeEscalation(), parsed.getReadOnlyRootFilesystem());
                 profiles.add(podProfileStore.save(profile));
@@ -110,6 +112,7 @@ class ProcessSnapshotService implements ProcessSnapshotUseCase {
                 parsed.assignTenant(tenant);
                 NodeProfile profile = nodeProfileStore.findByTenantAndName(tenant, parsed.getName())
                         .orElse(parsed);
+                profile.updateLastSeenAt(LocalDateTime.now());
                 profile.update(parsed.getOsImage(), parsed.getKernelVersion(), parsed.getContainerRuntimeVersion(), parsed.getKubeletVersion(), parsed.getCpuCapacity(), parsed.getMemoryCapacity());
                 nodeProfileStore.save(profile);
             } catch (Exception ignored) {}
@@ -123,6 +126,7 @@ class ProcessSnapshotService implements ProcessSnapshotUseCase {
                 parsed.assignTenant(tenant);
                 ServiceProfile profile = serviceProfileStore.findByTenantAndNamespaceAndName(tenant, parsed.getNamespace(), parsed.getName())
                         .orElse(parsed);
+                profile.updateLastSeenAt(LocalDateTime.now());
                 profile.update(parsed.getType(), parsed.getClusterIp(), parsed.getExternalIps());
                 serviceProfileStore.save(profile);
             } catch (Exception ignored) {}
@@ -136,6 +140,7 @@ class ProcessSnapshotService implements ProcessSnapshotUseCase {
                 parsed.assignTenant(tenant);
                 DeploymentProfile profile = deploymentProfileStore.findByTenantAndNamespaceAndName(tenant, parsed.getNamespace(), parsed.getName())
                         .orElse(parsed);
+                profile.updateLastSeenAt(LocalDateTime.now());
                 profile.update(parsed.getReplicas(), parsed.getAvailableReplicas(), parsed.getStrategyType(), parsed.getSelectorJson());
                 deploymentProfileStore.save(profile);
             } catch (Exception ignored) {}
@@ -149,6 +154,7 @@ class ProcessSnapshotService implements ProcessSnapshotUseCase {
                 parsed.assignTenant(tenant);
                 NamespaceProfile profile = namespaceProfileStore.findByTenantAndName(tenant, parsed.getName())
                         .orElse(parsed);
+                profile.updateLastSeenAt(LocalDateTime.now());
                 profile.update(parsed.getStatus());
                 namespaceProfileStore.save(profile);
             } catch (Exception ignored) {}
@@ -163,6 +169,7 @@ class ProcessSnapshotService implements ProcessSnapshotUseCase {
                 // [해결] Name 필드 대신 고유 식별자인 UID로 조회합니다.
                 EventProfile profile = eventProfileStore.findByTenantAndUid(tenant, parsed.getUid())
                         .orElse(parsed);
+                profile.updateLastSeenAt(LocalDateTime.now());
                 profile.update(parsed.getCount(), parsed.getLastTimestamp(), parsed.getMessage());
                 eventProfileStore.save(profile);
             } catch (Exception ignored) {}
@@ -174,6 +181,11 @@ class ProcessSnapshotService implements ProcessSnapshotUseCase {
             List<PolicyEvaluationResult> results = policyEngine.evaluate(type, resource, context);
             for (PolicyEvaluationResult res : results) {
                 String name = (resource instanceof PodProfile p) ? p.getAssetContext().getPodName() : "Unknown";
+                // [중복 방지] 동일 리소스의 동일 위반이 OPEN 상태로 이미 있으면 새 알림을 만들지 않는다.
+                // RESOLVED 처리된 뒤 위반이 재발하면 새 알림이 생성된다.
+                if (alertWriter.existsOpen(tenant, type.name(), name, res.getMessage())) {
+                    continue;
+                }
                 alertWriter.save(new Alert(tenant, res.getSeverity(), Category.CSPM, res.getMessage(), type.name(), name));
             }
         }

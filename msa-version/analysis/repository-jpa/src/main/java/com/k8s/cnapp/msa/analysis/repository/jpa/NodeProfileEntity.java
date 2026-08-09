@@ -13,9 +13,8 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
+
 
 @Entity
 @Getter
@@ -40,8 +39,6 @@ public class NodeProfileEntity extends BaseResourceProfileEntity {
     private String cpuCapacity;
     private String memoryCapacity;
 
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
 
     static NodeProfileEntity fromModel(NodeProfile model, TenantEntity tenant) {
         NodeProfileEntity entity = new NodeProfileEntity();

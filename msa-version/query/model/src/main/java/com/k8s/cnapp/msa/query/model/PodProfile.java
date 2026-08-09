@@ -34,5 +34,6 @@ public class PodProfile {
 
     private String cpuUsage;
     private String memoryUsage;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 }

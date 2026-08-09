@@ -32,10 +32,11 @@ public class DeploymentProfileEntity {
     private Integer availableReplicas;
     private String strategyType;
     private String selectorJson;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 
     public DeploymentProfile toModel() {
         return new DeploymentProfile(id, tenantId, namespace, name, replicas, availableReplicas,
-                strategyType, selectorJson, lastSeenAt);
+                strategyType, selectorJson, createdAt, lastSeenAt);
     }
 }

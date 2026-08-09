@@ -27,5 +27,6 @@ public class EventProfile {
     private Integer count;
     private OffsetDateTime lastTimestamp;
     private String uid;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 }

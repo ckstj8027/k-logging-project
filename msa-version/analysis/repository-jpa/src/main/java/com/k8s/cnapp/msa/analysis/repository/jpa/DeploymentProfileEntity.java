@@ -13,9 +13,8 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
+
 
 @Entity
 @Getter
@@ -39,8 +38,6 @@ public class DeploymentProfileEntity extends BaseResourceProfileEntity {
     @Column(columnDefinition = "TEXT")
     private String selectorJson;
 
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
 
     static DeploymentProfileEntity fromModel(DeploymentProfile model, TenantEntity tenant) {
         DeploymentProfileEntity entity = new DeploymentProfileEntity();

@@ -19,5 +19,6 @@ public class NamespaceProfile {
     private Long tenantId;
     private String name;
     private String status;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 }

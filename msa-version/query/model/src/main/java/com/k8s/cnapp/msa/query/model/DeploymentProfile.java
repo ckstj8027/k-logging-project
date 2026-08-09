@@ -23,5 +23,6 @@ public class DeploymentProfile {
     private Integer availableReplicas;
     private String strategyType;
     private String selectorJson;
+    private LocalDateTime createdAt;
     private LocalDateTime lastSeenAt;
 }

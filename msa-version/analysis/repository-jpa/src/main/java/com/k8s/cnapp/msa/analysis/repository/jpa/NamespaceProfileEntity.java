@@ -13,9 +13,8 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
+
 
 @Entity
 @Getter
@@ -35,8 +34,6 @@ public class NamespaceProfileEntity extends BaseResourceProfileEntity {
 
     private String status;
 
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
 
     static NamespaceProfileEntity fromModel(NamespaceProfile model, TenantEntity tenant) {
         NamespaceProfileEntity entity = new NamespaceProfileEntity();
